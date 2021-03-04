@@ -1,13 +1,18 @@
 package dsn_metaserver;
 
+import java.sql.SQLException;
 import java.util.LinkedList;
+import java.util.List;
+import java.util.Optional;
 import java.util.Queue;
+import java.util.logging.Logger;
 
 import dsn_metaserver.model.Chunk;
+import dsn_metaserver.model.OnlineNode;
 
 public class Replication {
 	
-	// voordat ik dit maak, labels toevoegen aan nodes
+	private static final Logger LOGGER = Logger.getLogger("Replication");
 	
 	private static final Queue<Long> CHUNK_CHECK_QUEUE = new LinkedList<>();
 	
@@ -21,13 +26,23 @@ public class Replication {
 		CHUNK_CHECK_QUEUE.add(chunk.getId());
 	}
 	
-	public static void start() {
-		System.out.println("Starting replication");
+	private static int calculateReplication(final List<OnlineNode> nodes) {
+		nodes.stream().map(OnlineNode::getLabel)
+	}
+	
+	public static void start() throws SQLException {
+		LOGGER.info("Starting replication");
 		while (!CHUNK_CHECK_QUEUE.isEmpty()) {
 			final long chunkId = CHUNK_CHECK_QUEUE.poll();
-			final Optional<Chunk> optChunk = Chunk.
+			final Optional<Chunk> optChunk = Chunk.byId(chunkId);
+			if (optChunk.isEmpty()) {
+				LOGGER.warning("Skipping chunk " + chunkId + ", it has been deleted.");
+				return;
+			}
+			final Chunk chunk = optChunk.get();
+			final List<OnlineNode> nodes = chunk.getOnlineNodes();
 		}
-		System.out.println("Replication completed");
+		LOGGER.info("Replication completed");
 	}
 	
 //	private static class ChunkQueueObj {

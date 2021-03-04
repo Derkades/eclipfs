@@ -13,6 +13,7 @@ def announce():
         'address': environ['OWN_ADDRESS'],
         'quota': 100,
         'name': 'test',
+        'label': environ['LABEL'],
     }
 
     r = requests.post(environ['METASERVER_ADDRESS'] + '/node/announce', headers=HEADERS, json=data)

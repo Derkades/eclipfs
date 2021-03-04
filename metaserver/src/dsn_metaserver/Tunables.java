@@ -16,7 +16,7 @@ public class Tunables {
 	 */
 	public static final int CHUNKSIZE = 1_000_000; // 1MB
 	
-	public static final int DEFAULT_REPLICATION_GOAL = 3;
+	public static final int REPLICATION_GOAL = 3;
 	
 	@Deprecated
 	public static boolean shouldDistribute(final long fileSize) {

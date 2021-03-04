@@ -96,7 +96,7 @@ public class OnlineNode extends Node {
 //				}
 			} else {
 				// New node
-				final Optional<Node> optNode = findByTokenInDatabase(token);
+				final Optional<Node> optNode = Node.byToken(token);
 				
 				if (optNode.isEmpty()) {
 					throw new NodeNotFoundException("Could not find node by token '" + token + "'");

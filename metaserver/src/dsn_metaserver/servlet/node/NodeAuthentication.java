@@ -26,7 +26,7 @@ public class NodeAuthentication {
 			response.getWriter().write("Node token has invalid length");
 		}
 		
-		final Optional<Node> optNode = Node.findByTokenInDatabase(token);
+		final Optional<Node> optNode = Node.byToken(token);
 		if (optNode.isPresent()) {
 			return optNode;
 		}

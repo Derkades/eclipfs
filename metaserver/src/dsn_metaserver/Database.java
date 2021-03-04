@@ -9,6 +9,7 @@ public class Database {
 	
 	// TODO Load settings from environment variables
 	
+	// TODO make private
 	public static Connection getConnection() throws SQLException {
 //		MetaServer.LOGGER.info("new database connection");
 		final String hostname = "localhost";

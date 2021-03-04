@@ -10,6 +10,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonWriter;
 
 import dsn_metaserver.Nodes;
+import dsn_metaserver.TransferType;
 import dsn_metaserver.Validation;
 import dsn_metaserver.model.Chunk;
 import dsn_metaserver.model.Directory;
@@ -36,9 +37,9 @@ public class ChunkTransfer extends HttpServlet {
 		final String directoryPath = HttpUtil.getJsonString(json, "directory", response);
 		final String fileName = HttpUtil.getJsonString(json, "file", response);
 		final Long chunkIndex = HttpUtil.getJsonLong(json, "chunk", response);
-		final String transferType = HttpUtil.getJsonString(json, "type", response);
+		final String transferTypeString = HttpUtil.getJsonString(json, "type", response);
 		
-		if (directoryPath == null || fileName == null || chunkIndex == null || transferType == null) {
+		if (directoryPath == null || fileName == null || chunkIndex == null || transferTypeString == null) {
 			return;
 		}
 		
@@ -50,7 +51,15 @@ public class ChunkTransfer extends HttpServlet {
 			
 			final User user = optUser.get();
 			
-			if (transferType.equals("upload") && !user.hasWriteAccess()) {
+			TransferType transferType;
+			try {
+				transferType = TransferType.valueOf(transferTypeString.toUpperCase());
+			} catch (final IllegalArgumentException e) {
+				HttpUtil.sendBadRequest(response, "transfer type must be 'upload', 'download'");
+				return;
+			}
+			
+			if (transferType == TransferType.UPLOAD && !user.hasWriteAccess()) {
 				ApiError.MISSING_WRITE_ACCESS.send(response);
 				return;
 			}
@@ -76,9 +85,7 @@ public class ChunkTransfer extends HttpServlet {
 			Chunk chunk;
 			final Optional<Chunk> optChunk = file.getChunk(chunkIndex.intValue());
 			
-			boolean write;
-			final String method = transferType;
-			if (transferType.equals("upload")) {
+			if (transferType == TransferType.UPLOAD) {
 				if (optChunk.isPresent()) {
 					chunk = optChunk.get();
 					// TODO only update checksum after successful update somehow
@@ -98,21 +105,18 @@ public class ChunkTransfer extends HttpServlet {
 					}
 					chunk = file.createChunk(chunkIndex.intValue(), Hex.decode(checksum), size);
 				}
-				write = true;
-			} else if (transferType.equals("download")) {
+			} else if (transferType == TransferType.DOWNLOAD) {
 				if (optChunk.isPresent()) {
 					chunk = optChunk.get();
 				} else {
 					ApiError.CHUNK_NOT_EXISTS.send(response);
 					return;
 				}
-				write = false;
 			} else {
-				HttpUtil.sendBadRequest(response, "transfer type must be 'upload', 'download'");
-				return;
+				throw new IllegalStateException(transferType.name());
 			}
 			
-			final Optional<OnlineNode> optNode = write ? Nodes.selectNodeForUpload(chunk) : Nodes.selectNodeForDownload(chunk);
+			final Optional<OnlineNode> optNode = Nodes.selectNode(chunk, transferType, null, null);
 
 			if (optNode.isEmpty()) {
 				ApiError.FILE_DOWNLOAD_NODES_UNAVAILABLE.send(response);
@@ -121,10 +125,10 @@ public class ChunkTransfer extends HttpServlet {
 			
 			final OnlineNode node = optNode.get();
 			
-			final String nodeToken = write ? node.getWriteToken() : node.getReadToken();
+			final String nodeToken = node.getToken(transferType);
 			
 			final String address = node.getAddress() +
-					"/" + method +
+					"/" + transferTypeString +
 					"?node_token=" + nodeToken +
 					"&chunk_token=" + chunk.getToken();
 			
@@ -134,7 +138,7 @@ public class ChunkTransfer extends HttpServlet {
 			try (JsonWriter writer = HttpUtil.getJsonWriter(response)) {
 				writer.beginObject();
 				writer.name("url").value(address);
-				if (!write) {
+				if (transferType == TransferType.UPLOAD) {
 					writer.name("checksum").value(chunk.getChecksumHex());
 				}
 				writer.endObject();

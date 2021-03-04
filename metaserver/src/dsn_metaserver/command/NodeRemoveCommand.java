@@ -9,7 +9,7 @@ public class NodeRemoveCommand extends Command {
 	@Override
 	public void run(final String[] args) throws Exception {
 		final String token = args[0];
-		final Optional<Node> node = Node.findByTokenInDatabase(token);
+		final Optional<Node> node = Node.byToken(token);
 		if (node.isEmpty()) {
 			System.out.println("Node not found");
 		} else {

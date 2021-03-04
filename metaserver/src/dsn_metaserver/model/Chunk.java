@@ -1,6 +1,5 @@
 package dsn_metaserver.model;
 
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -66,17 +65,23 @@ public class Chunk {
 	}
 	
 	public List<Long> getNodeIds() throws SQLException {
-		try (Connection connection = Database.getConnection()) {
-			try (PreparedStatement query = connection.prepareStatement("SELECT node FROM \"chunk_node\" WHERE chunk=?")) {
-				query.setLong(1, this.getId());
-				final ResultSet result = query.executeQuery();
-				final List<Long> nodes = new ArrayList<>();
-				while (result.next()) {
-					nodes.add(result.getLong(1));
-				}
-				return nodes;
+		try (PreparedStatement query = Database.prepareStatement("SELECT node FROM \"chunk_node\" WHERE chunk=?")) {
+			query.setLong(1, this.getId());
+			final ResultSet result = query.executeQuery();
+			final List<Long> nodes = new ArrayList<>();
+			while (result.next()) {
+				nodes.add(result.getLong(1));
 			}
+			return nodes;
 		}
+	}
+	
+	public List<Node> getNodes() throws SQLException {
+		final List<Node> nodes = new ArrayList<>();
+		for (final long id : getNodeIds()) {
+			nodes.add(Node.byId(id).orElseThrow(() -> new IllegalStateException("Node id " + id + " not found, this should be impossible due to foreign key constraints")));
+		}
+		return nodes;
 	}
 	
 	public void updateChecksum(final byte[] checksum) throws SQLException {

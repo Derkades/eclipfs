@@ -40,18 +40,20 @@ public class Announce extends HttpServlet {
 			final Long freeSpace = HttpUtil.getJsonLong(json, "free", response);
 			final URL address = HttpUtil.getJsonAddress(json, "address", response);
 			final Long storageQuota = HttpUtil.getJsonLong(json, "quota", response);
+			final String label = HttpUtil.getJsonString(json, "label", response);
 //			final String name = HttpUtil.getJsonString(json, "name", response);
 			
 			if (token == null ||
 					version == null ||
 					freeSpace == null ||
 					address == null ||
-					storageQuota == null) {
+					storageQuota == null ||
+					label == null) {
 				return;
 			}
 			
 			try {
-				OnlineNode.processNodeAnnounce(token, version, freeSpace, address, storageQuota);
+				OnlineNode.processNodeAnnounce(token, version, freeSpace, address, storageQuota, label);
 			} catch (final NodeNotFoundException e) {
 				// This is impossible, authentication check should have failed before if no node exists with this token
 				throw new IllegalStateException(e);

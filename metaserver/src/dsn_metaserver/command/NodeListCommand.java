@@ -28,7 +28,7 @@ public class NodeListCommand extends Command {
 				for (int i = 0; i < onlineNodes.size(); i++) {
 					final OnlineNode node = onlineNodes.get(i);
 					data[i][0] = node.getId();
-					data[i][1] = node.getReadToken() + " - " + node.getWriteToken();
+					data[i][1] = node.getFullToken();
 					data[i][2] = node.getAddress();
 					data[i][3] = node.getUptime();
 					data[i][4] = node.getDownloadPriority();
@@ -49,7 +49,7 @@ public class NodeListCommand extends Command {
 				for (int i = 0; i < nodes.size(); i++) {
 					final Node node = nodes.get(i);
 					data[i][0] = node.getId();
-					data[i][1] = node.getReadToken() + " - " + node.getWriteToken();
+					data[i][1] = node.getFullToken();
 					data[i][2] = node.getUptime();
 					data[i][3] = node.getDownloadPriority();
 					data[i][4] = node.getUploadPriority();

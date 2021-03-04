@@ -16,8 +16,11 @@ from os import environ as env
 import os
 from pathlib import Path
 from requests.exceptions import RequestException
+import requests
+
 
 app = Flask(__name__)
+
 
 def verify_request_auth(typ):
     if 'node_token' not in request.args:
@@ -34,6 +37,7 @@ def verify_request_auth(typ):
 
     if not request.args['node_token'] == token:
         abort(403, 'Invalid node_token')
+
 
 def get_chunk_path(chunk_token, mkdirs=False):
     if len(chunk_token) != 128:
@@ -91,28 +95,6 @@ def create_chunk(chunk_token, data):
         file.write(data)
     return True
 
-# def update_chunk(chunk_token, data):
-#     """
-#     Overwrite chunk data to local disk. Fails if the chunk does not exist.
-
-#     Parameters:
-#         chunk_token: Chunk token
-#         data: Chunk data
-#     Returns:
-#         success boolean
-#     """
-#     path = get_chunk_path(chunk_token, mkdirs=True)
-#     if not path:
-#         print('update_chunk fail, path is None')
-#         return False
-#     if not os.path.exists(path):
-#         print('update_chunk fail, chunk does not exist yet')
-#         return False
-#     print('path', path)
-#     with open(path, 'wb') as file:
-#         file.write(data)
-#     return True
-
 
 @app.route('/ping', methods=['GET'])
 def ping():
@@ -123,6 +105,7 @@ def ping():
 
     # return jsonify({'answer': num ** 2})
     return Response(response='pong', content_type="text/plain")
+
 
 @app.route('/upload', methods=['POST'])
 def upload():
@@ -151,23 +134,25 @@ def upload():
         abort(500, 'Unable to send chunk upload notification to master server')
 
 
-# @app.route('/update', methods=['POST'])
-# def update():
-#     verify_request_auth('write')
+@app.route('/replicate', methods=['POST'])
+def replicate():
+    verify_request_auth('full')
 
-#     if 'chunk_token' not in request.args:
-#         abort(400, 'Missing chunk_token')
+    if 'chunk_token' not in request.args:
+        abort(400, 'Missing chunk_token')
 
-#     if request.content_type != 'application/octet-stream':
-#         abort(400, 'Request content type must be application/octet-stream')
+    if 'address' not in request.args:
+        abort(400, 'Missing address')
 
-#     if request.data == b'':
-#         abort(400, 'Request body is empty')
+    chunk_token = request.args['chunk_token']
 
-#     if update_chunk(request.args['chunk_token'], request.data):
-#         return Response('ok', content_type='text/plain')
-#     else:
-#         abort(500, 'Unable to write chunk data to file')
+    data = read_chunk(chunk_token)
+    if not data:
+        return abort(404, 'Chunk not found. Is the token valid and of the correct length?')
+
+    address = request.args['address']
+    requests.post(address, headers={'Content-Type': 'application/octet-stream'}, data=data)
+
 
 @app.route('/download', methods=['GET'])
 def download():
@@ -182,6 +167,7 @@ def download():
     else:
         return abort(404, 'Chunk not found. Is the token valid and of the correct length?')
 
+
 def announce():
     try:
         (success, response, error_message) = dsnapi.announce()
@@ -190,12 +176,14 @@ def announce():
     except RequestException as e:
         print('Unable to contact master server:', e)
 
+
 def timers():
     announce()
     schedule.every(5).to(10).seconds.do(announce)
     while True:
         schedule.run_pending()
         sleep(1)
+
 
 t = threading.Thread(target=timers, args=[])
 t.daemon = True # required to exit nicely on SIGINT

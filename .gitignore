@@ -1,2 +1,5 @@
 *.class
 metaserver/target
+metaserver/.classpath
+metaserver/.project
+metaserver/.settings
