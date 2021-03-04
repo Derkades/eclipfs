@@ -1,0 +1,90 @@
+CREATE TABLE "user" (
+  "id" serial PRIMARY KEY,
+  "username" text NOT NULL UNIQUE,
+  "password" text,
+  "write_access" boolean DEFAULT 'False' NOT NULL
+);
+
+CREATE TABLE "group" (
+  "id" serial PRIMARY KEY,
+  "name" text NOT NULL UNIQUE
+);
+
+CREATE TABLE "user_group" (
+  "user" serial NOT NULL,
+  "group" serial NOT NULL,
+  CONSTRAINT "fk_user"
+    FOREIGN KEY("user")
+	    REFERENCES "user"("id"),
+  CONSTRAINT "fk_group"
+    FOREIGN KEY("group")
+	    REFERENCES "group"("id")
+);
+
+CREATE TABLE "node" (
+  "id" serial PRIMARY KEY,
+  -- "address" text,
+  "uptime" float NOT NULL DEFAULT 1.0,
+  "priority_download" float NOT NULL DEFAULT 1.0,
+  "priority_upload" float NOT NULL DEFAULT 1.0,
+  "token" text NOT NULL,
+  "name" text
+  -- "operator" serial,
+  -- CONSTRAINT "fk_operator"
+  --   FOREIGN KEY("operator")
+	--     REFERENCES "user"("id")
+);
+
+CREATE TABLE "directory" (
+  "id" serial PRIMARY KEY,
+  "name" TEXT NOT NULL,
+  -- "path" TEXT NOT NULL,
+  "parent" BIGINT REFERENCES "directory"("id"),
+  -- "size_count" BIGINT NOT NULL DEFAULT 0,
+  -- "size_bytes" BIGINT NOT NULL DEFAULT 0,
+  -- "owner" serial NOT NULL REFERENCES "user"("id"),
+  -- "group_read" boolean NOT NULL DEFAULT 'true',
+  -- "group_write" boolean NOT NULL DEFAULT 'false',
+  -- "public_read" boolean NOT NULL DEFAULT 'true',
+  -- "public_write" boolean NOT NULL DEFAULT 'false',
+  -- "replication" int NOT NULL,
+  "delete_time" BIGINT DEFAULT NULL-- NULL if not deleted
+);
+
+CREATE TABLE "file" (
+  "id" serial PRIMARY KEY,
+  "name" text NOT NULL,
+  "directory" serial NOT NULL REFERENCES "directory"("id"),
+  -- "size" bigint,
+  -- "distributed" bool NOT NULL,
+  -- "uploaded" bool NOT NULL DEFAULT 'false',
+  -- "checksum" bytea,
+  -- "chunksize" int NOT NULL,
+  "delete_time" BIGINT -- NULL if not deleted
+);
+
+-- CREATE TABLE "file_storage" (
+--   -- "id" serial PRIMARY KEY,
+--   "file" serial NOT NULL UNIQUE REFERENCES "file"("id"),
+--   "data" bytea NOT NULL
+-- );
+
+CREATE TABLE "chunk" (
+  "id" serial PRIMARY KEY,
+  "index" int NOT NULL,
+  "size" bigint NOT NULL,
+  "file" serial NOT NULL REFERENCES "file"("id"),
+  "checksum" bytea NOT NULL,
+  "token" text NOT NULL UNIQUE
+  UNIQUE("index", "file")
+);
+
+CREATE TABLE "chunk_node" (
+  "chunk" serial NOT NULL REFERENCES "chunk"("id"),
+  "node" serial NOT NULL REFERENCES "node"("id")
+);
+
+-- CREATE TABLE "delete_jobs" (
+--   "id" serial PRIMARY KEY,
+--   "node" serial NOT NULL REFERENCES "node"("id")
+-- );

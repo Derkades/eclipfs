@@ -1,0 +1,12 @@
+version: '3'
+
+services:
+  node:
+    build: .
+    container_name: node
+    ports: [8000:80]
+    volumes: ['/opt/chunkserver1:/data']
+    environment:
+      TOKEN: SSGmtcLnpjbmeAkDhwauYpa7w3J34JlLaeBgODt8OipUfndIi83XuG5IH20aG5RFWNd9lr6tqS3fNdv1M9x6OppNB6Kck6hjBsc6GAQPlYRxmYoDP5FrZg80JQlLZpg9
+      METASERVER_ADDRESS: http://10.0.0.124:7779
+      OWN_ADDRESS: 'http://10.0.0.124:8000'
