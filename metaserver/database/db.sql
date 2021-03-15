@@ -5,16 +5,6 @@ CREATE TABLE "user" (
   "write_access" boolean DEFAULT 'False' NOT NULL
 );
 
-CREATE TABLE "group" (
-  "id" serial PRIMARY KEY,
-  "name" text NOT NULL UNIQUE
-);
-
-CREATE TABLE "user_group" (
-  "user" serial NOT NULL REFERENCES "user"(id),
-  "group" serial NOT NULL REFERENCES "group"(id)
-);
-
 CREATE TABLE "node" (
   "id" serial PRIMARY KEY,
   -- "address" text,
@@ -80,15 +70,15 @@ CREATE TABLE "chunk" (
   "id" serial PRIMARY KEY,
   "index" int NOT NULL,
   "size" bigint NOT NULL,
-  "file" serial NOT NULL REFERENCES "inode"("id"),
+  "file" serial NOT NULL REFERENCES "inode"("id") ON DELETE CASCADE,
   "checksum" bytea NOT NULL,
   "token" text NOT NULL UNIQUE,
   UNIQUE("index", "file")
 );
 
 CREATE TABLE "chunk_node" (
-  "chunk" serial NOT NULL REFERENCES "chunk"("id"),
-  "node" serial NOT NULL REFERENCES "node"("id")
+  "chunk" serial NOT NULL REFERENCES "chunk"("id") ON DELETE CASCADE,
+  "node" serial NOT NULL REFERENCES "node"("id") ON DELETE CASCADE
 );
 
 -- CREATE TABLE "delete_jobs" (

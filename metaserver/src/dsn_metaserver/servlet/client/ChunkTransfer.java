@@ -118,7 +118,7 @@ public class ChunkTransfer extends HttpServlet {
 			try (JsonWriter writer = HttpUtil.getJsonWriter(response)) {
 				writer.beginObject();
 				writer.name("url").value(address);
-				if (transferType == TransferType.UPLOAD) {
+				if (transferType == TransferType.DOWNLOAD) {
 					writer.name("checksum").value(chunk.getChecksumHex());
 				}
 				writer.endObject();

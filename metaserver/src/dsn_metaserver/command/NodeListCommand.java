@@ -22,7 +22,7 @@ public class NodeListCommand extends Command {
 				System.out.println("No online nodes");
 			} else {
 				System.out.println("Online nodes:");
-				final String[] columns = {"id", "token", "address", "uptime", "download priority", "upload priority", "name"};
+				final String[] columns = {"id", "token", "address", "uptime", "download priority", "upload priority", "name", "label"};
 				final Object[][] data = new Object[onlineNodes.size()][columns.length];
 				
 				for (int i = 0; i < onlineNodes.size(); i++) {
@@ -34,6 +34,7 @@ public class NodeListCommand extends Command {
 					data[i][4] = node.getDownloadPriority();
 					data[i][5] = node.getUploadPriority();
 					data[i][6] = node.getName();
+					data[i][7] = node.getLabel();
 				}
 				
 				new TextTable(columns, data).printTable();

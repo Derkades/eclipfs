@@ -18,6 +18,10 @@ class Inode:
     def by_mkdir(inode_p, name):
         return Inode(api.post('directoryCreate', {'directory': inode_p, 'name': name}))
 
+    @staticmethod
+    def by_mkfile(inode_p, name):
+        return Inode(api.post('fileCreate', {'directory': inode_p, 'name': name}))
+
     def __init__(self, response):
         (success, response) = response
 

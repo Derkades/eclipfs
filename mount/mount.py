@@ -102,16 +102,17 @@ class Operations(pyfuse3.Operations):
         while inode:
             # Note: one inode in the write buffer may appear multiple times, with different chunk indices. We only selet one
             (data, chunk_index) = self._get_row('SELECT data,chunk_index FROM write_buffer WHERE inode=? LIMIT 1', (inode,))
-            inode_p = self._get_parent(inode)
-            dir_path = self._get_full_path(inode_p)
-            file_name = self._get_name(inode)
+            # info = Inode.by_inode(inode)
+            # inode_p = self._get_parent(inode)
+            # dir_path = self._get_full_path(inode_p)
+            # file_name = self._get_name(inode)
 
             checksum = hashlib.md5(data).hexdigest()
             size = len(data)
 
-            print('making chunkTransfer request', inode, chunk_index, inode_p, dir_path, file_name, checksum, size)
+            print('making chunkTransfer request', inode, chunk_index, checksum, size, inode)
 
-            (success, response) = api.post('chunkTransfer', data={'directory': dir_path, 'file': file_name, 'chunk': chunk_index, 'type': 'upload', 'checksum': checksum, 'size': size})
+            (success, response) = api.post('chunkTransfer', data={'file': inode, 'chunk': chunk_index, 'type': 'upload', 'checksum': checksum, 'size': size})
 
             if not success:
                 print('FAILED TO REQUEST CHUNK TRANSFER', inode, chunk_index)
@@ -254,7 +255,15 @@ class Operations(pyfuse3.Operations):
 
 
     async def unlink(self, inode_p, name,ctx):
-        raise(FUSEError(errno.ENOTSUP)) # Error: not supported
+        (success, response) = api.post('inodeDelete', data={'inode_p': inode_p, 'name': name})
+        if not success:
+            if response == 9:
+                raise FUSEError(errno.EACCES) # Permission denied
+            elif response in [22, 23, 25]:
+                raise FUSEError(errno.ENOENT) # No such file or directory. but wait, what?? should not be possible
+            else:
+                print(response)
+                raise(FUSEError(errno.EREMOTEIO)) # Remote I/O error
 
 
     async def rmdir(self, inode_p, name, ctx):
@@ -264,7 +273,7 @@ class Operations(pyfuse3.Operations):
                 raise FUSEError(errno.ENOTEMPTY) # Directory not empty
             elif response == 9:
                 raise FUSEError(errno.EACCES) # Permission denied
-            elif response == 22 or response == 25:
+            elif response in [22,23,25]:
                 raise FUSEError(errno.ENOENT) # No such file or directory. but wait, what?? should not be possible
             else:
                 print(response)
@@ -433,15 +442,10 @@ class Operations(pyfuse3.Operations):
         # self.inode_open_count[inode] += 1
         print('open', inode, flags)
 
-        self._print_db()
         # make sure the inode exists and is a file
-        i_type = self._get_type(inode)
-        if i_type == 'f':
-            pass  # good!
-        elif i_type == 'd':
+        info = Inode.by_inode(inode)
+        if info.is_dir():
             raise(FUSEError(errno.EISDIR)) # Error: Is a directory
-        else:
-            raise(FUSEError(errno.ENOENT)) # Error: No such file or directory
 
         # Use inodes as a file handles
         return pyfuse3.FileInfo(fh=inode)
@@ -465,49 +469,51 @@ class Operations(pyfuse3.Operations):
         (Successful) execution of this handler increases the lookup count for the returned inode by one.
         """
         # print('Creating files not implemented')
-        print('create', 'inode_p', inode_p, 'name', name, 'mode', mode, 'flags', flags)
+        # print('create', 'inode_p', inode_p, 'name', name, 'mode', mode, 'flags', flags)
 
-        if inode_p == pyfuse3.ROOT_INODE:
-            print('Cannot create file in root directory!')
-            raise(FUSEError(errno.ENOTSUP))
+        # if inode_p == pyfuse3.ROOT_INODE:
+        #     print('Cannot create file in root directory!')
+        #     raise(FUSEError(errno.ENOTSUP))
 
-        # as always, refresh before any operation
-        self._refresh_dir(inode_p)
+        # # as always, refresh before any operation
+        # self._refresh_dir(inode_p)
 
-        dir_path = self._get_full_path(inode_p)
+        # dir_path = self._get_full_path(inode_p)
 
-        # check if file exists
-        try:
-            inode = self._get_inode(inode_p, name)
-            # no exception, it does!
-            raise(FUSEError(errno.EEXIST)) # File exists
-        except NoSuchRowError:
-            # file does not exist, good
-            pass
+        # # check if file exists
+        # try:
+        #     inode = self._get_inode(inode_p, name)
+        #     # no exception, it does!
+        #     raise(FUSEError(errno.EEXIST)) # File exists
+        # except NoSuchRowError:
+        #     # file does not exist, good
+        #     pass
 
-        (success, _response) = api.post('fileCreate', {'dir': dir_path, 'name': name})
-        if not success:
-            raise(FUSEError(errno.EREMOTEIO)) # Remote I/O error
+        # (success, _response) = api.post('fileCreate', {'dir': dir_path, 'name': name})
+        # if not success:
+        #     raise(FUSEError(errno.EREMOTEIO)) # Remote I/O error
 
-        # refresh dir to get newly created file
-        self._refresh_dir(inode_p)
+        # # refresh dir to get newly created file
+        # self._refresh_dir(inode_p)
 
-        inode = self._get_inode(inode_p, name)
+        # inode = self._get_inode(inode_p, name)
 
-        return (pyfuse3.FileInfo(fh=inode), await self.getattr(inode))
+        # return (pyfuse3.FileInfo(fh=inode), await self.getattr(inode))
 
         # raise(FUSEError(errno.ENOSYS))
 
         # entry = await self._create(inode_parent, name, mode, ctx)
         # self.inode_open_count[entry.st_ino] += 1
         # return (pyfuse3.FileInfo(fh=entry.st_ino), entry)
+        info = Inode.by_mkfile(inode_p, name)
+        return (pyfuse3.FileInfo(fh=info.inode()), self._getattr(info, ctx))
 
 
     def _download_chunk(self, inode, chunk_index):
         print('_download_chunk', inode, chunk_index)
-        file_name = self._get_name(inode)
-        dir_path = self._get_full_path(self._get_parent(inode))
-        (success, response) = api.post('chunkTransfer', data={'directory': dir_path, 'file': file_name, 'chunk': chunk_index, 'type': 'download'})
+        # file_name = self._get_name(inode)
+        # dir_path = self._get_full_path(self._get_parent(inode))
+        (success, response) = api.post('chunkTransfer', data={'file': inode, 'chunk': chunk_index, 'type': 'download'})
         if not success:
             return 'apierror', response
         download_url = response['url']
@@ -519,24 +525,26 @@ class Operations(pyfuse3.Operations):
             print('checksum valid! size of downloaded data:', len(chunk_data))
             return 'success', chunk_data
         else:
-            print('checksum invalid', hashlib.md5(chunk_data).hexdigest(), checksum, len(chunk_data))
+            print('checksum invalid')
             return 'checksum', chunk_data
 
 
     async def read(self, fh, offset, length):
         start_chunk = offset // config.CHUNKSIZE
         end_chunk = (offset+length) // config.CHUNKSIZE
-        inode = fh
+        # inode = fh
         print('read', 'handle', fh, 'offset', offset, 'length', length, 'chunk start', start_chunk, 'chunk end', end_chunk)
+
+        # info = Inode.by_inode(fh)
 
         chunks_data = b''
         for chunk_index in range(start_chunk, end_chunk + 1):
             try:
-                chunk_data = self._get_row('SELECT data FROM write_buffer WHERE inode=? AND chunk_index=?', (inode, chunk_index))['data']
+                chunk_data = self._get_row('SELECT data FROM write_buffer WHERE inode=? AND chunk_index=?', (fh, chunk_index))['data']
                 print('read: found data in local buffer')
             except NoSuchRowError:
                 print('Chunk data not in write buffer for chunk index', chunk_index)
-                (status, chunk_data) = self._download_chunk(inode, chunk_index)
+                (status, chunk_data) = self._download_chunk(fh, chunk_index)
                 if status != 'success':
                     print('Download error:', status, chunk_data)
                     raise(FUSEError(errno.EIO))
@@ -579,7 +587,7 @@ class Operations(pyfuse3.Operations):
                     chunk_data = response
                 elif status == 'apierror' and response == 15:
                     # chunk does not exist
-                    print('Chunk does not exist, using empty byte array')
+                    print(f'Chunk {chunk_index} does not exist, using empty byte array')
                     chunk_data = b''
                 else:
                     print('Unknown download error', status, response)
@@ -594,10 +602,13 @@ class Operations(pyfuse3.Operations):
             chunks_data += chunk_data
 
         data_offset = offset % config.CHUNKSIZE
+        print('going to write data now, data size before', len(chunks_data))
         chunks_data = chunks_data[:data_offset] + buf + chunks_data[data_offset+len(buf):]
+        print('data size after', len(chunks_data))
 
         for chunk_index in range(start_chunk, end_chunk + 1):
-            data = chunks_data[chunk_index*config.CHUNKSIZE:(chunk_index+1)*config.CHUNKSIZE]
+            data = chunks_data[(chunk_index-start_chunk)*config.CHUNKSIZE:(chunk_index-start_chunk+1)*config.CHUNKSIZE]
+            print('putting data in write buffer - chunk index', chunk_index, 'offset start', (chunk_index-start_chunk)*config.CHUNKSIZE, 'offset end', (chunk_index-start_chunk+1)*config.CHUNKSIZE, 'data len', len(data))
             timestamp = int(time.time())
             values = (fh, chunk_index, data, timestamp, data, timestamp)
             self.cursor.execute('INSERT INTO write_buffer (inode, chunk_index, data, last_update) VALUES (?,?,?,?) ON CONFLICT(inode, chunk_index) DO UPDATE SET data=?, last_update=?', values)
@@ -675,7 +686,7 @@ if __name__ == '__main__':
     operations = Operations()
 
     fuse_options = set(pyfuse3.default_options)
-    fuse_options.add('fsname=dsnfs')
+    fuse_options.add('fsname=eclipfs')
     fuse_options.discard('default_permissions')
     if options.debug_fuse:
         fuse_options.add('debug')

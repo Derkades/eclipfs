@@ -91,6 +91,10 @@ def create_chunk(chunk_token, data):
         return False
     print('create_chunk: path exists:', os.path.exists(path))
     print('path', path)
+    print('data length:', len(data))
+    if len(data) > 1000000:
+        print('create_chunk fail, data too large')
+        return False
     with open(path, 'wb') as file:
         file.write(data)
     return True
