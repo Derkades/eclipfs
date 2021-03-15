@@ -4,22 +4,19 @@ import java.sql.SQLException;
 
 import dsn_metaserver.MetaServer;
 import dsn_metaserver.exception.AlreadyExistsException;
+import dsn_metaserver.model.Inode;
 
-public class DirectoryCreateCommand extends Command {
+public class DeleteCommand extends Command {
 
 	@Override
 	public void run(final String[] args) throws SQLException, AlreadyExistsException {
 		if (args.length != 1) {
-			System.out.println("<path>");
+			System.out.println("<name>");
 			return;
 		}
 		
-		try {
-			MetaServer.WORKING_DIRECTORY.createDirectory(args[0]);
-			System.out.println("Directory created");
-		} catch (final AlreadyExistsException e) {
-			System.out.println(e.getMessage());
-		}
+		final Inode inode = MetaServer.WORKING_DIRECTORY.getChild(args[0]).get();
+		inode.delete();
 	}
 
 }

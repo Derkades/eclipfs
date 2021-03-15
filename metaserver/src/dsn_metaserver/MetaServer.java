@@ -4,7 +4,6 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -24,6 +23,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import dsn_metaserver.command.ChangeDirectoryCommand;
 import dsn_metaserver.command.Command;
+import dsn_metaserver.command.DeleteCommand;
 import dsn_metaserver.command.DirectoryCreateCommand;
 import dsn_metaserver.command.ListCommand;
 import dsn_metaserver.command.NodeCreateCommand;
@@ -35,21 +35,21 @@ import dsn_metaserver.command.UpCommand;
 import dsn_metaserver.command.UserAddCommand;
 import dsn_metaserver.command.UserListCommand;
 import dsn_metaserver.model.Directory;
+import dsn_metaserver.model.Inode;
 import dsn_metaserver.servlet.client.ChunkInfo;
 import dsn_metaserver.servlet.client.ChunkTransfer;
 import dsn_metaserver.servlet.client.DirectoryCreate;
 import dsn_metaserver.servlet.client.DirectoryDelete;
 import dsn_metaserver.servlet.client.DirectoryInfo;
-import dsn_metaserver.servlet.client.DirectoryListRoot;
-import dsn_metaserver.servlet.client.DirectoryMove;
 import dsn_metaserver.servlet.client.FileCreate;
 import dsn_metaserver.servlet.client.FileInfo;
+import dsn_metaserver.servlet.client.Move;
 import dsn_metaserver.servlet.node.Announce;
 import dsn_metaserver.servlet.node.NotifyChunkUploaded;
 
 public class MetaServer {
 	
-	public static Optional<Directory> WORKING_DIRECTORY = Optional.empty();
+	public static Directory WORKING_DIRECTORY;
 	
 	public static final Logger LOGGER = Logger.getGlobal();
 	
@@ -61,6 +61,7 @@ public class MetaServer {
 	
 	static {
 		COMMANDS.put("cd", new ChangeDirectoryCommand());
+		COMMANDS.put("del", new DeleteCommand());
 		COMMANDS.put("mkdir", new DirectoryCreateCommand());
 		COMMANDS.put("ls", new ListCommand());
 		COMMANDS.put("nodelist", new NodeListCommand());
@@ -77,27 +78,25 @@ public class MetaServer {
 		if (!DEBUG) {
 			LOGGER.setLevel(Level.WARNING);
 		}
-		
+
+		WORKING_DIRECTORY = Inode.getRootInode();
+
 		startWebServer();
-		
-        final LineReader reader = LineReaderBuilder.builder().build();
-        while (true) {
-            try {
-                final String line = reader.readLine(getPrompt());
-                runCommand(line);
-            } catch (final UserInterruptException e) {
-            } catch (final EndOfFileException e) {
-                return;
-            }
-        }
+
+		final LineReader reader = LineReaderBuilder.builder().build();
+		while (true) {
+			try {
+				final String line = reader.readLine(getPrompt());
+				runCommand(line);
+			} catch (final UserInterruptException e) {
+			} catch (final EndOfFileException e) {
+				return;
+			}
+		}
 	}
 	
 	private static String getPrompt() throws SQLException {
-		if (WORKING_DIRECTORY.isEmpty()) {
-			return "dsn / > ";
-		} else {
-			return "dsn " + WORKING_DIRECTORY.get().getAboslutePath() + " > ";
-		}
+		return "dsn " + WORKING_DIRECTORY.getAbsolutePath() + " > ";
 	}
 	
 	public static void runCommand(final String line) {
@@ -134,10 +133,9 @@ public class MetaServer {
 		handler.addServlet(DirectoryCreate.class, "/client/directoryCreate");
 		handler.addServlet(DirectoryDelete.class, "/client/directoryDelete");
 		handler.addServlet(DirectoryInfo.class, "/client/directoryInfo");
-		handler.addServlet(DirectoryListRoot.class, "/client/directoryListRoot");
-		handler.addServlet(DirectoryMove.class, "/client/directoryMove");
 		handler.addServlet(FileCreate.class, "/client/fileCreate");
 		handler.addServlet(FileInfo.class, "/client/fileInfo");
+		handler.addServlet(Move.class, "/client/directoryMove");
 		
 		handler.addServlet(Announce.class, "/node/announce");
 		handler.addServlet(NotifyChunkUploaded.class, "/node/notifyChunkUploaded");

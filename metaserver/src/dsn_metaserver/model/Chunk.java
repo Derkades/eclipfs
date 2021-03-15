@@ -130,11 +130,11 @@ public class Chunk {
 			final ResultSet result = query.executeQuery();
 			if (result.next()) {
 				final long fileId = result.getLong("file");
-				final Optional<File> optFile = File.byId(fileId);
+				final Optional<Inode> optFile = Inode.byId(fileId);
 				if (optFile.isEmpty()) {
 					throw new IllegalStateException("Orphan chunk: file no longer exists. File id: " + fileId);
 				}
-				return Optional.of(new Chunk(optFile.get(), result));
+				return Optional.of(new Chunk((File) optFile.get(), result));
 			} else {
 				return Optional.empty();
 			}
@@ -149,11 +149,11 @@ public class Chunk {
 			final ResultSet result = query.executeQuery();
 			if (result.next()) {
 				final long fileId = result.getLong("file");
-				final Optional<File> optFile = File.byId(fileId);
+				final Optional<Inode> optFile = Inode.byId(fileId);
 				if (optFile.isEmpty()) {
 					throw new IllegalStateException("Orphan chunk: file no longer exists. File id: " + fileId);
 				}
-				return Optional.of(new Chunk(optFile.get(), result));
+				return Optional.of(new Chunk((File) optFile.get(), result));
 			} else {
 				return Optional.empty();
 			}

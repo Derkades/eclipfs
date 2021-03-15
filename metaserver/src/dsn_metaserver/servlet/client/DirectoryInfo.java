@@ -8,7 +8,7 @@ import com.google.gson.stream.JsonWriter;
 
 import dsn_metaserver.model.Directory;
 import dsn_metaserver.model.File;
-import dsn_metaserver.servlet.ApiError;
+import dsn_metaserver.model.User;
 import dsn_metaserver.servlet.HttpUtil;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,24 +21,15 @@ public class DirectoryInfo extends HttpServlet {
 	@Override
 	protected void doGet(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
 		try {
-//			final Optional<User> optUser = ClientAuthentication.verify(request, response);
-//			if (optUser.isEmpty()) {
-//				return;
-//			}
-			
-			final String path = HttpUtil.getStringParameter(request, response, "path");
-			if (path == null) {
+			final Optional<User> optUser = ClientAuthentication.verify(request, response);
+			if (optUser.isEmpty()) {
 				return;
 			}
 			
-			final Optional<Directory> optDir = Directory.findByPath(path);
-		
-			if (optDir.isEmpty()) {
-				ApiError.DIRECTORY_NOT_EXISTS.send(response);
+			final Directory directory = HttpUtil.getDirectoryInodeParameter(request, response);
+			if (directory == null) {
 				return;
 			}
-			
-			final Directory directory = optDir.get();
 			
 			try (JsonWriter jsonResponse = new JsonWriter(response.getWriter())) {
 				jsonResponse.beginObject();
@@ -56,12 +47,9 @@ public class DirectoryInfo extends HttpServlet {
 		
 		json.name("name").value(directory.getName());
 		
-		final Optional<Directory> optParent = directory.getParent();
-		if (optParent.isPresent()) {
-			final Directory parent = optParent.get();
-			json.name("parent_id").value(parent.getId());
-			json.name("parent_name").value(parent.getName());
-		}
+		final Directory parent = directory.getParent();
+		json.name("parent_id").value(parent.getId());
+		json.name("parent_name").value(parent.getName());
 		
 		json.name("directories");
 		json.beginArray();

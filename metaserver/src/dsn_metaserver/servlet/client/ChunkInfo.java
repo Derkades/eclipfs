@@ -9,7 +9,6 @@ import org.springframework.security.crypto.codec.Hex;
 import com.google.gson.stream.JsonWriter;
 
 import dsn_metaserver.model.Chunk;
-import dsn_metaserver.model.Directory;
 import dsn_metaserver.model.File;
 import dsn_metaserver.servlet.ApiError;
 import dsn_metaserver.servlet.HttpUtil;
@@ -27,28 +26,13 @@ public class ChunkInfo extends HttpServlet {
 			if (ClientAuthentication.verify(request, response).isEmpty()) {
 				return;
 			}
-			
-			final String directoryPath = HttpUtil.getStringParameter(request, response, "directory");
-			final String fileName = HttpUtil.getStringParameter(request, response, "file_name");
+
+			final File file = HttpUtil.getFileInodeParameter(request, response);
 			final Long chunkIndex = HttpUtil.getLongParameter(request, response, "index");
 			
-			if (directoryPath == null || fileName == null || chunkIndex == null) {
+			if (file == null|| chunkIndex == null) {
 				return;
 			}
-			
-			final Optional<Directory> optDir = Directory.findByPath(directoryPath);
-			if (optDir.isEmpty()) {
-				ApiError.DIRECTORY_NOT_EXISTS.send(response);
-				return;
-			}
-			final Directory directory = optDir.get();
-			
-			final Optional<File> optFile = directory.getFile(fileName);
-			if (optFile.isEmpty()) {
-				ApiError.FILE_NOT_EXISTS.send(response);
-				return;
-			}
-			final File file = optFile.get();
 			
 			final Optional<Chunk> optChunk = file.getChunk(chunkIndex.intValue());
 			if (optChunk.isEmpty()) {

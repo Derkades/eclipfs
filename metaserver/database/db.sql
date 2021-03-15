@@ -11,14 +11,8 @@ CREATE TABLE "group" (
 );
 
 CREATE TABLE "user_group" (
-  "user" serial NOT NULL,
-  "group" serial NOT NULL,
-  CONSTRAINT "fk_user"
-    FOREIGN KEY("user")
-	    REFERENCES "user"("id"),
-  CONSTRAINT "fk_group"
-    FOREIGN KEY("group")
-	    REFERENCES "group"("id")
+  "user" serial NOT NULL REFERENCES "user"(id),
+  "group" serial NOT NULL REFERENCES "group"(id)
 );
 
 CREATE TABLE "node" (
@@ -35,33 +29,45 @@ CREATE TABLE "node" (
 	--     REFERENCES "user"("id")
 );
 
-CREATE TABLE "directory" (
-  "id" serial PRIMARY KEY,
-  "name" TEXT NOT NULL,
-  -- "path" TEXT NOT NULL,
-  "parent" BIGINT REFERENCES "directory"("id"),
-  -- "size_count" BIGINT NOT NULL DEFAULT 0,
-  -- "size_bytes" BIGINT NOT NULL DEFAULT 0,
-  -- "owner" serial NOT NULL REFERENCES "user"("id"),
-  -- "group_read" boolean NOT NULL DEFAULT 'true',
-  -- "group_write" boolean NOT NULL DEFAULT 'false',
-  -- "public_read" boolean NOT NULL DEFAULT 'true',
-  -- "public_write" boolean NOT NULL DEFAULT 'false',
-  -- "replication" int NOT NULL,
-  "delete_time" BIGINT DEFAULT NULL-- NULL if not deleted
+CREATE TABLE "inode" (
+  "id" serial UNIQUE PRIMARY KEY,
+  -- "inode" bigint UNIQUE NOT NULL,
+  "parent" serial NOT NULL REFERENCES inode(id),
+  "is_file" boolean NOT NULL,
+  "name" text NOT NULL,
+  "ctime" bigint NOT NULL,
+  "mtime" bigint NOT NULL
 );
 
-CREATE TABLE "file" (
-  "id" serial PRIMARY KEY,
-  "name" text NOT NULL,
-  "directory" serial NOT NULL REFERENCES "directory"("id"),
-  -- "size" bigint,
-  -- "distributed" bool NOT NULL,
-  -- "uploaded" bool NOT NULL DEFAULT 'false',
-  -- "checksum" bytea,
-  -- "chunksize" int NOT NULL,
-  "delete_time" BIGINT -- NULL if not deleted
-);
+INSERT INTO "inode" VALUES (0, 0, 'False', 'ROOT', 0, 0);
+
+-- CREATE TABLE "directory" (
+--   "id" serial PRIMARY KEY,
+--   "name" TEXT NOT NULL,
+--   -- "path" TEXT NOT NULL,
+--   "parent" BIGINT REFERENCES "directory"("id"),
+--   -- "size_count" BIGINT NOT NULL DEFAULT 0,
+--   -- "size_bytes" BIGINT NOT NULL DEFAULT 0,
+--   -- "owner" serial NOT NULL REFERENCES "user"("id"),
+--   -- "group_read" boolean NOT NULL DEFAULT 'true',
+--   -- "group_write" boolean NOT NULL DEFAULT 'false',
+--   -- "public_read" boolean NOT NULL DEFAULT 'true',
+--   -- "public_write" boolean NOT NULL DEFAULT 'false',
+--   -- "replication" int NOT NULL,
+--   "delete_time" BIGINT DEFAULT NULL-- NULL if not deleted
+-- );
+
+-- CREATE TABLE "file" (
+--   "id" serial PRIMARY KEY,
+--   "name" text NOT NULL,
+--   "directory" serial NOT NULL REFERENCES "directory"("id"),
+--   -- "size" bigint,
+--   -- "distributed" bool NOT NULL,
+--   -- "uploaded" bool NOT NULL DEFAULT 'false',
+--   -- "checksum" bytea,
+--   -- "chunksize" int NOT NULL,
+--   "delete_time" BIGINT -- NULL if not deleted
+-- );
 
 -- CREATE TABLE "file_storage" (
 --   -- "id" serial PRIMARY KEY,
@@ -73,9 +79,9 @@ CREATE TABLE "chunk" (
   "id" serial PRIMARY KEY,
   "index" int NOT NULL,
   "size" bigint NOT NULL,
-  "file" serial NOT NULL REFERENCES "file"("id"),
+  "file" serial NOT NULL REFERENCES "inode"("id"),
   "checksum" bytea NOT NULL,
-  "token" text NOT NULL UNIQUE
+  "token" text NOT NULL UNIQUE,
   UNIQUE("index", "file")
 );
 

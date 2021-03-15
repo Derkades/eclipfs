@@ -13,7 +13,6 @@ import dsn_metaserver.Nodes;
 import dsn_metaserver.TransferType;
 import dsn_metaserver.Validation;
 import dsn_metaserver.model.Chunk;
-import dsn_metaserver.model.Directory;
 import dsn_metaserver.model.File;
 import dsn_metaserver.model.OnlineNode;
 import dsn_metaserver.model.User;
@@ -29,23 +28,22 @@ public class ChunkTransfer extends HttpServlet {
 
 	@Override
 	protected void doPost(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
-		final JsonObject json = HttpUtil.readJsonFromRequestBody(request, response);
-		if (json == null) {
-			return;
-		}
-		
-		final String directoryPath = HttpUtil.getJsonString(json, "directory", response);
-		final String fileName = HttpUtil.getJsonString(json, "file", response);
-		final Long chunkIndex = HttpUtil.getJsonLong(json, "chunk", response);
-		final String transferTypeString = HttpUtil.getJsonString(json, "type", response);
-		
-		if (directoryPath == null || fileName == null || chunkIndex == null || transferTypeString == null) {
-			return;
-		}
-		
 		try {
 			final Optional<User> optUser = ClientAuthentication.verify(request, response);
 			if (optUser.isEmpty()) {
+				return;
+			}
+			
+			final JsonObject json = HttpUtil.readJsonFromRequestBody(request, response);
+			if (json == null) {
+				return;
+			}
+			
+			final File file = HttpUtil.getJsonFile(json, response);
+			final Long chunkIndex = HttpUtil.getJsonLong(json, response, "chunk");
+			final String transferTypeString = HttpUtil.getJsonString(json, response, "type");
+			
+			if (file == null || chunkIndex == null || transferTypeString == null) {
 				return;
 			}
 			
@@ -64,24 +62,6 @@ public class ChunkTransfer extends HttpServlet {
 				return;
 			}
 			
-			final Optional<Directory> optDirectory = Directory.findByPath(directoryPath);
-			
-			if (optDirectory.isEmpty()) {
-				ApiError.DIRECTORY_NOT_EXISTS.send(response);
-				return;
-			}
-			
-			final Directory directory = optDirectory.get();
-			
-			final Optional<File> optFile = directory.getFile(fileName);
-			
-			if (optFile.isEmpty()) {
-				ApiError.FILE_NOT_EXISTS.send(response);
-				return;
-			}
-			
-			final File file = optFile.get();
-			
 			Chunk chunk;
 			final Optional<Chunk> optChunk = file.getChunk(chunkIndex.intValue());
 			
@@ -89,8 +69,8 @@ public class ChunkTransfer extends HttpServlet {
 				if (optChunk.isPresent()) {
 					chunk = optChunk.get();
 					// TODO only update checksum after successful update somehow
-					final String checksum = HttpUtil.getJsonString(json, "checksum", response);
-					final Long size = HttpUtil.getJsonLong(json, "size", response);
+					final String checksum = HttpUtil.getJsonString(json, response, "checksum");
+					final Long size = HttpUtil.getJsonLong(json, response, "size");
 					if (checksum == null || size == null) {
 						return;
 					}
@@ -98,8 +78,8 @@ public class ChunkTransfer extends HttpServlet {
 					chunk.updateSize(size);
 //					method = "update";
 				} else {
-					final String checksum = HttpUtil.getJsonString(json, "checksum", response);
-					final Long size = HttpUtil.getJsonLong(json, "size", response);
+					final String checksum = HttpUtil.getJsonString(json, response, "checksum");
+					final Long size = HttpUtil.getJsonLong(json, response, "size");
 					if (checksum == null || size == null) {
 						return;
 					}

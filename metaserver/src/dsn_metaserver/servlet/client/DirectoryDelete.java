@@ -6,7 +6,6 @@ import java.util.Optional;
 
 import com.google.gson.JsonObject;
 
-import dsn_metaserver.exception.NotEmptyException;
 import dsn_metaserver.model.Directory;
 import dsn_metaserver.model.User;
 import dsn_metaserver.servlet.ApiError;
@@ -30,39 +29,30 @@ public class DirectoryDelete extends HttpServlet {
 			
 			final User user = optUser.get();
 			
+			if (!user.hasWriteAccess()) {
+				ApiError.MISSING_WRITE_ACCESS.send(response);
+				return;
+			}
+			
 			final JsonObject json = HttpUtil.readJsonFromRequestBody(request, response);
 			
 			if (json == null) {
 				return;
 			}
 			
-			final String path = HttpUtil.getJsonString(json, "path", response);
-			if (path == null) {
+			final Directory directory = HttpUtil.getJsonDirectory(json, response);
+			if (directory == null) {
 				return;
 			}
 			
-			final Optional<Directory> optDir = Directory.findByPath(path);
-			
-			if (optDir.isEmpty()) {
-				ApiError.DIRECTORY_NOT_EXISTS.send(response);
-				return;
-			}
-			
-			final Directory dir = optDir.get();
-			
-			if (!user.hasWriteAccess()) {
-				ApiError.MISSING_WRITE_ACCESS.send(response);
-				return;
-			}
-			
-			try {
-				dir.delete();
-				response.getWriter().write("{\"success\": true}");
-				response.getWriter().flush();
-			} catch (final NotEmptyException e) {
+			if (directory.isEmpty()) {
+				directory.delete();
+			} else {
 				ApiError.DIRECTORY_NOT_EMPTY.send(response);
 				return;
 			}
+			
+			HttpUtil.writeSuccessTrueJson(response);
 		} catch (final SQLException e) {
 			HttpUtil.handleSqlException(response, e);
 			return;

@@ -34,8 +34,8 @@ public class NotifyChunkUploaded  extends HttpServlet {
 				return;
 			}
 				
-			final String chunkToken = HttpUtil.getJsonString(json, "chunk_token", response);
-			final Long chunkSize = HttpUtil.getJsonLong(json, "chunk_size", response);
+			final String chunkToken = HttpUtil.getJsonString(json, response, "chunk_token");
+			final Long chunkSize = HttpUtil.getJsonLong(json, response, "chunk_size");
 			if (chunkToken == null || chunkSize == null) {
 				return;
 			}

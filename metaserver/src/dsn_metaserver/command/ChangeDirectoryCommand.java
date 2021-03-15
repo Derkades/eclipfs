@@ -3,35 +3,43 @@ package dsn_metaserver.command;
 import java.sql.SQLException;
 import java.util.Optional;
 
-import org.apache.commons.lang3.StringUtils;
-
 import dsn_metaserver.MetaServer;
+import dsn_metaserver.exception.NotADirectoryException;
 import dsn_metaserver.exception.NotExistsException;
 import dsn_metaserver.model.Directory;
+import dsn_metaserver.model.File;
+import dsn_metaserver.model.Inode;
 
 public class ChangeDirectoryCommand extends Command {
 
 	@Override
-	public void run(final String[] args) throws SQLException, NotExistsException {
+	public void run(final String[] args) throws SQLException, NotExistsException, NotADirectoryException {
 		if (args.length != 1) {
 			System.out.println("<path>");
 		}
 		
 		String path = args[0];
+		
 		if (!path.startsWith("/")) {
-			if (MetaServer.WORKING_DIRECTORY.isPresent()) {
-				path = MetaServer.WORKING_DIRECTORY.get().getAboslutePath() + path;
-			} else {
-				path = "/" + path;
-			}
+			// Relative path
+			path = MetaServer.WORKING_DIRECTORY.getAbsolutePath() + "/" + path;
 		}
-		path = StringUtils.removeEnd(path, "/");
-		final Optional<Directory> directory = Directory.findByPath(path);
-		if (directory.isEmpty()) {
-			System.out.println("This directory does not exist");
-		} else {
-			MetaServer.WORKING_DIRECTORY = directory;
+		
+		final Optional<Inode> opt = Inode.findByPath(path);
+		
+		if (opt.isEmpty()) {
+			System.out.print("This directory does not exist");
+			return;
 		}
+		
+		final Inode inode = opt.get();
+		
+		if (inode instanceof File) {
+			System.out.println("The provided name is a file, not a directory");
+			return;
+		}
+		
+		MetaServer.WORKING_DIRECTORY = (Directory) inode;
 	}
 
 }

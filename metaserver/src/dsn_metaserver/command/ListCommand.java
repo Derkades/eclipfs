@@ -12,36 +12,24 @@ public class ListCommand extends Command {
 
 	@Override
 	public void run(final String[] args) throws Exception {
-		if (MetaServer.WORKING_DIRECTORY.isPresent()) {
-			final Directory dir = MetaServer.WORKING_DIRECTORY.get();
-			final List<Directory> subdirs = dir.listDirectories();
-			final List<File> files = dir.listFiles();
-			if (subdirs.isEmpty() && files.isEmpty()) {
-				System.out.println("No files or subdirectories");
-				return;
-			} else {
-				if (subdirs.isEmpty()) {
-					System.out.println("No subdirectories");
-				} else {
-					System.out.println("Subdirectories:");
-					printDirectories(subdirs);
-				}
-				
-				if (files.isEmpty()) {
-					System.out.println("No files");
-				} else {
-					System.out.println("Files:");
-					printFiles(files);
-				}
-			}
+		final List<Directory> subdirs = MetaServer.WORKING_DIRECTORY.listDirectories();
+		final List<File> files = MetaServer.WORKING_DIRECTORY.listFiles();
+		if (subdirs.isEmpty() && files.isEmpty()) {
+			System.out.println("No files or subdirectories");
+			return;
 		} else {
-			final List<Directory> subdirs = Directory.getRootDirectories();
 			if (subdirs.isEmpty()) {
-				System.out.println("No directories");
-				return;
+				System.out.println("No subdirectories");
 			} else {
-				System.out.println("Directories:");
+				System.out.println("Subdirectories:");
 				printDirectories(subdirs);
+			}
+			
+			if (files.isEmpty()) {
+				System.out.println("No files");
+			} else {
+				System.out.println("Files:");
+				printFiles(files);
 			}
 		}
 	}

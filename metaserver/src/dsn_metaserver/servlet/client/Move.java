@@ -5,11 +5,10 @@ import java.sql.SQLException;
 import java.util.Optional;
 
 import com.google.gson.JsonObject;
-import com.google.gson.stream.JsonWriter;
 
 import dsn_metaserver.exception.AlreadyExistsException;
 import dsn_metaserver.model.Directory;
-import dsn_metaserver.model.File;
+import dsn_metaserver.model.Inode;
 import dsn_metaserver.model.User;
 import dsn_metaserver.servlet.ApiError;
 import dsn_metaserver.servlet.HttpUtil;
@@ -17,15 +16,14 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-public class FileCreate extends HttpServlet {
-
+public class Move extends HttpServlet {
+	
 	private static final long serialVersionUID = 1L;
 
 	@Override
 	protected void doPost(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
-		Optional<User> optUser;
 		try {
-			optUser = ClientAuthentication.verify(request, response);
+			final Optional<User> optUser = ClientAuthentication.verify(request, response);
 			
 			if (optUser.isEmpty()) {
 				return;
@@ -37,38 +35,31 @@ public class FileCreate extends HttpServlet {
 				ApiError.MISSING_WRITE_ACCESS.send(response);
 				return;
 			}
-				
+			
 			final JsonObject json = HttpUtil.readJsonFromRequestBody(request, response);
+			
 			if (json == null) {
 				return;
 			}
 			
-			final Directory directory = HttpUtil.getJsonDirectory(json, response);
-			final String name = HttpUtil.getJsonString(json, response, "name");
-			if (directory == null || name == null) {
+			final Inode inode = HttpUtil.getJsonDirectory(json, response, "inode");
+			final Directory newParent = HttpUtil.getJsonDirectory(json, response, "new_parent");
+			final String newName = HttpUtil.getJsonString(json, response, "new_name");
+			
+			if (inode == null || newParent == null || newName == null) {
 				return;
 			}
 			
-			if (directory.contains(name)) {
+			try {
+				inode.move(newParent, newName);
+			} catch (final AlreadyExistsException e) {
 				ApiError.NAME_ALREADY_EXISTS.send(response);
 				return;
 			}
-			
-			File file;
-			try {
-				file = directory.createFile(name);
-			} catch (final AlreadyExistsException e) {
-				throw new IllegalStateException(e);
-			}
-			
-			try (JsonWriter jsonResponse = HttpUtil.getJsonWriter(response)) {
-				jsonResponse.beginObject();
-				jsonResponse.name("file");
-				FileInfo.writeFileInfoJson(file, jsonResponse);
-				jsonResponse.endObject();
-			}
+			HttpUtil.writeSuccessTrueJson(response);
 		} catch (final SQLException e) {
 			HttpUtil.handleSqlException(response, e);
+			return;
 		}
 	}
 

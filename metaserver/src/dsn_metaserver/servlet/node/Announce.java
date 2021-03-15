@@ -36,11 +36,11 @@ public class Announce extends HttpServlet {
 			}
 			
 			final String token = optNode.get().getFullToken();
-			final String version = HttpUtil.getJsonString(json, "version", response);
-			final Long freeSpace = HttpUtil.getJsonLong(json, "free", response);
-			final URL address = HttpUtil.getJsonAddress(json, "address", response);
-			final Long storageQuota = HttpUtil.getJsonLong(json, "quota", response);
-			final String label = HttpUtil.getJsonString(json, "label", response);
+			final String version = HttpUtil.getJsonString(json, response, "version");
+			final Long freeSpace = HttpUtil.getJsonLong(json, response, "free");
+			final URL address = HttpUtil.getJsonAddress(json, response, "address");
+			final Long storageQuota = HttpUtil.getJsonLong(json, response, "quota");
+			final String label = HttpUtil.getJsonString(json, response, "label");
 //			final String name = HttpUtil.getJsonString(json, "name", response);
 			
 			if (token == null ||
