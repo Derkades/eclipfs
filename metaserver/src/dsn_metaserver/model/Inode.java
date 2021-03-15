@@ -171,7 +171,7 @@ public abstract class Inode {
 		try (final PreparedStatement query = Database.prepareStatement("UPDATE inode SET parent=?, name=? WHERE id=?")){
 			query.setLong(1, newParent.getId());
 			query.setString(2, newName);
-			query.setLong(1, this.getId());
+			query.setLong(3, this.getId());
 			query.execute();
 			this.parentId = newParent.getId();
 			this.name = newName;

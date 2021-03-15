@@ -60,7 +60,9 @@ public class DirectoryCreate extends HttpServlet {
 			try (JsonWriter writer = new JsonWriter(response.getWriter())) {
 				writer.beginObject();
 				writer.name("directory");
+				writer.beginObject();
 				InodeInfo.writeInodeInfoJson(directory, writer);
+				writer.endObject();
 				writer.endObject();
 			}
 		} catch (final SQLException e) {

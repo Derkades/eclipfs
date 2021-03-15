@@ -62,10 +62,9 @@ public class FileCreate extends HttpServlet {
 			}
 			
 			try (JsonWriter writer = HttpUtil.getJsonWriter(response)) {
-				writer.beginObject();
-				writer.name("file");
+				writer.beginObject().name("file").beginObject();
 				InodeInfo.writeInodeInfoJson(file, writer);
-				writer.endObject();
+				writer.endObject().endObject();
 			}
 		} catch (final SQLException e) {
 			HttpUtil.handleSqlException(response, e);
