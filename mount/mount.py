@@ -16,6 +16,7 @@ import trio
 import threading
 import config
 import api
+from inode import Inode
 
 import requests
 import hashlib
@@ -46,20 +47,6 @@ class Operations(pyfuse3.Operations):
         self.write_lock = threading.Lock()
 
     def init_tables(self):
-        # self.cursor.execute("""
-        # CREATE TABLE inode_map (
-        #     inode           INTEGER PRIMARY KEY,
-        #     inode_p         INTEGER NOT NULL,
-        #     name            TEXT NOT NULL,
-        #     is_dir          BOOLEAN NOT NULL,
-        #     size            LONG NOT NULL,
-        #     UNIQUE(inode_p, name)
-        # )
-        # """)
-
-        # Skip inode=1, this is already used by the root dir
-        self.cursor.execute("INSERT INTO inode_map VALUES (1, 0, 'ROOT_DIRECTORY', 1, 0)")
-
         self.cursor.execute("""
         CREATE TABLE write_buffer (
             inode           INTEGER NOT NULL,
@@ -83,245 +70,6 @@ class Operations(pyfuse3.Operations):
         # )
         # """)
 
-        # self.cursor.execute("""
-        # CREATE TABLE write_cache (
-        #     inode           INTEGER NOT NULL,
-        #     directory       TEXT NOT NULL,
-        #     filename        TEXT NOT NULL,
-        #     chunk_index     INTEGER NOT NULL,
-        #     data            bytea NOT NULL,
-        #     UNIQUE(directory, filename, chunk_index),
-        #     UNIQUE(inode, chunk_index)
-        # )
-        # """)
-
-
-    def _get_full_path(self, inode):
-        """
-        Get absolute path. Needs to go up the tree recursively.
-        """
-        self._print_db()
-        print('_get_full_path', inode)
-
-        if inode == pyfuse3.ROOT_INODE:
-            return '/'
-        else:
-            full_path = self._get_name(inode)
-            inode_p = self._get_parent(inode)
-            while inode_p:
-                full_path = self._get_name(inode_p) + '/' + full_path
-                inode_p = self._get_parent(inode_p)
-
-            if not full_path.startswith("ROOT_DIRECTORY"):
-                raise Exception('Full path does not start with ROOT_DIRECTORY', full_path)
-
-            return full_path[14:] # remove ROOT_DIRECTORY (but leave / after it)
-
-
-    def _get_parent(self, inode):
-        """
-        Get inode of parent directory for the specified file or directory inode. Throws an exception if the inode is invalid, returns None if it has no parent.
-        """
-        if inode == pyfuse3.ROOT_INODE:
-            return None
-
-        return self._get_row("SELECT inode_p FROM inode_map WHERE inode=?", (inode,))['inode_p']
-
-
-    def _get_name(self, inode):
-        """
-        Get file name by inode
-        """
-        return self._get_row("SELECT name FROM inode_map WHERE inode=?", (inode,))['name']
-
-
-    def _get_type(self, inode):
-        """
-        Get inode type
-
-        Parameters:
-            inode
-
-        Returns:
-            'f' for files, 'd' for directories, 'None' if the inode does not exist.
-        """
-        try:
-            is_dir = self._get_row('SELECT is_dir FROM inode_map WHERE inode=?', (inode,))['is_dir']
-            return 'd' if is_dir else 'f'
-        except NoSuchRowError:
-            return None
-
-
-    def _print_db(self):
-        """
-        Print inode map for debugging
-        """
-        self.cursor.execute("SELECT * FROM inode_map")
-        for row in self.cursor:
-            print('inode', row['inode'], 'inode_p', row['inode_p'], 'name', row['name'], 'is_dir', row['is_dir'])
-
-
-    def _get_inode(self, inode_p, name):
-        print('_get_inode', inode_p, name)
-        """
-        Get inode for a file or directory
-
-        Parameters:
-            inode_p: Parent directory inode
-            name: Name of new or existing file or directory
-
-        Returns:
-            Inode of created file or directory
-
-        Throws:
-            NoSuchRowError if no such entry exists
-        """
-        if type(name) == bytes:
-            name = name.decode()
-
-        return self._get_row('SELECT inode FROM inode_map WHERE inode_p=? AND name=?', (inode_p, name))['inode']
-
-
-    def _create_inode(self, inode_p, name, i_type, size):
-        """
-        Get inode for a file or directory, creating one if it does not exist yet.
-
-        Parameters:
-            inode_p: Parent directory inode
-            name: Name of new or existing file or directory
-            i_type: Inode type, 'f' for files, 'd' for directories.
-
-        Returns:
-            Inode of created file or directory
-        """
-        if type(name) == bytes:
-            name = name.decode()
-
-        try:
-            return self._get_inode(inode_p, name)
-        except NoSuchRowError:
-            is_dir = i_type == 'd'
-            self.cursor.execute("INSERT INTO inode_map (inode_p, name, is_dir, size) VALUES (?, ?, ?, ?)", (inode_p, name, is_dir, size))
-            return self.cursor.lastrowid
-
-
-    def _inode_ls_inode(self, inode_p):
-        """
-        List files and directories in a directory
-
-        Parameters:
-            inode_p: Inode of parent directory
-
-        Returns:
-            List of inodes
-        """
-        self.cursor.execute("SELECT inode FROM inode_map WHERE inode_p=?", (inode_p,))
-        return [row['inode'] for row in self.cursor]
-
-
-    def _inode_ls_name(self, inode_p):
-        """
-        List files and directories in a directory
-
-        Parameters:
-            inode_p: Inode of parent directory
-
-        Returns:
-            List of file/directory names
-        """
-        self.cursor.execute("SELECT name FROM inode_map WHERE inode_p=?", (inode_p,))
-        return [row['name'] for row in self.cursor]
-
-
-    def _inode_ls(self, inode_p):
-        """
-        List files and directories in a directory
-
-        Parameters:
-            inode_p: Inode of parent directory
-
-        Returns:
-            List of tuples: (inode, file/directory name, type ('f'/'d')
-        """
-        self.cursor.execute("SELECT inode,name,is_dir FROM inode_map WHERE inode_p=?", (inode_p,))
-        return [(row['inode'], row['name'], 'd' if row['is_dir'] else 'f') for row in self.cursor]
-
-
-    def _get_size(self, inode):
-        return self._get_row('SELECT size FROM inode_map WHERE inode=?', (inode,))['size']
-
-
-    def _refresh_dir(self, inode_p):
-        """
-        Refresh local inode map for the specified inode. Adds any new directories and removes any deleted directories. Files are not handled yet.
-
-        Parameters:
-            inode_p
-        """
-        # self.cursor.execute('DELETE FROM inode_map WHERE inode_p=?', (inode_p,))
-        # self.cursor.execute("SELECT name FROM inode_map WHERE inode_p=?", (inode_p,))
-        # old_subdir_names = {row['path'] for row in self.cursor}
-        old_entries = self._inode_ls(inode_p)
-        old_dir_names = []
-        old_file_names = []
-
-        for old_entry in old_entries:
-            (_inode, name, i_type) = old_entry
-            if i_type == 'f':
-                old_file_names.append(name)
-            elif i_type == 'd':
-                old_dir_names.append(name)
-            else:
-                raise Exception()
-
-        old_dir_names = set(old_dir_names)
-        old_file_names = set(old_file_names)
-
-        if inode_p == pyfuse3.ROOT_INODE:
-            (_success, response) = api.get('directoryListRoot')
-            directories = response['directories']
-            new_dir_names = {directory['name'] for directory in directories}
-            new_file_names_sizes = {} # can't have files in root directory
-        else:
-            path_p = self._get_full_path(inode_p)
-            (_success, response) = api.get('directoryInfo', params={'path': path_p})
-            # TODO handle api errors
-            new_dir_names = set(response['directory']['directories'])
-            new_file_names_sizes = {}
-            for file_obj in response['directory']['files']:
-                # print(file_obj)
-                new_file_names_sizes[file_obj['name']] = file_obj['size']
-
-        for old_dir_name in old_dir_names:
-            if old_dir_name not in new_dir_names:
-                # a directory has been removed on the remote
-                print('removing local directory', old_dir_name, old_dir_names, new_dir_names)
-                self.cursor.execute('DELETE FROM inode_map WHERE inode_p=? AND name=?', (inode_p, old_dir_name))
-
-        for old_file_name in old_file_names:
-            if old_file_name not in new_file_names_sizes:
-                # a file has been removed on the remote
-                print('removing local file', old_file_name, old_file_names, new_file_names_sizes)
-                self.cursor.execute('DELETE FROM inode_map WHERE inode_p=? AND name=?', (inode_p, old_file_name))
-
-        for new_dir_name in new_dir_names:
-            if new_dir_name not in old_dir_names:
-                # a new directory has been added on the remote
-                self._create_inode(inode_p, new_dir_name, 'd', size=0)
-
-        for new_file_name in new_file_names_sizes:
-            if new_file_name not in old_file_names:
-                # a new file has been added on the remote
-                size = new_file_names_sizes[new_file_name]
-                self._create_inode(inode_p, new_file_name, 'f', size)
-
-        # Update file sizes
-        for new_file_name in new_file_names_sizes:
-            size = new_file_names_sizes[new_file_name]
-            # print(size)
-            self.cursor.execute('UPDATE inode_map SET size=? WHERE name=? AND inode_p=?', (size, new_file_name, inode_p))
-
-
     def _get_row(self, *a, **kw):
         self.cursor.execute(*a, **kw)
         try:
@@ -344,14 +92,6 @@ class Operations(pyfuse3.Operations):
 
     def _clear_write_buffer(self, time_before=None):
         print('clear write buffer')
-        #         CREATE TABLE write_buffer (
-        #     inode           INTEGER NOT NULL,
-        #     chunk_index     INTEGER NOT NULL,
-        #     data            bytea NOT NULL,
-        #     last_update     BIGINT NOT NULL,
-        #     PRIMARY KEY(inode, chunk_index),
-        #     UNIQUE(inode, chunk_index)
-        # )
         self.write_lock.acquire()
         try:
             inode = self._get_row('SELECT inode FROM write_buffer LIMIT 1')['inode']
@@ -429,24 +169,23 @@ class Operations(pyfuse3.Operations):
         elif name == '..':
             inode = self._get_parent(inode)
         else:
-            self._refresh_dir(inode_p)
-            try:
-                inode = self._get_inode(inode_p, name)
-            except NoSuchRowError:
-                raise(pyfuse3.FUSEError(errno.ENOENT))
-
-        return await self.getattr(inode, ctx)
+            info = Inode.by_name(inode_p, name)
+            return self._getattr(info, ctx)
 
 
     async def getattr(self, inode, ctx=None):
-        # print(f'getattr inode={inode}')
-        if inode == pyfuse3.ROOT_INODE:
+        info = Inode.by_inode(inode)
+        return self._getattr(info, ctx)
+
+
+    def _getattr(self, info, ctx):
+        if info.inode() == pyfuse3.ROOT_INODE:
             is_dir = True
         else:
-            is_dir = self._get_type(inode) == 'd'
+            is_dir = info.is_dir()
 
         entry = pyfuse3.EntryAttributes()
-        entry.st_ino = inode
+        entry.st_ino = info.inode()
         entry.generation = 0
         entry.entry_timeout = 300
         entry.attr_timeout = 300
@@ -459,15 +198,13 @@ class Operations(pyfuse3.Operations):
         entry.st_uid = config.MOUNT_UID
         entry.st_gid = config.MOUNT_GID
         entry.st_rdev = 0
-        entry.st_size = self._get_size(inode)
+        entry.st_size = info.size()
 
         entry.st_blksize = 512 # TODO Use a sensible block size (same as chunk size?)
         entry.st_blocks = 1
-        # time_ns = row['time'] * 1e9
-        # TODO Time
         entry.st_atime_ns = 0
-        entry.st_mtime_ns = 0
-        entry.st_ctime_ns = 0
+        entry.st_mtime_ns = info.mtime() * 1e6
+        entry.st_ctime_ns = info.ctime() * 1e6
 
         return entry
 
@@ -478,7 +215,6 @@ class Operations(pyfuse3.Operations):
 
     async def opendir(self, fh, ctx):
         return fh
-
 
 
     async def readdir(self, fh, start_index, token):
@@ -505,20 +241,13 @@ class Operations(pyfuse3.Operations):
         filesystem must not increase the lookup count for the corresponding inodes (even if
         readdir_reply returns True).
         """
-        inode_p = fh
 
-        if start_index == 0:
-            self._refresh_dir(inode_p)
-            self._print_db()
+        info = Inode.by_inode(fh)
+        entries = info.list_as_tuple()
 
-        # TODO more efficient approach, select necessary rows only (starting at start_index)
-        self.cursor.execute("SELECT inode,name FROM inode_map WHERE inode_p=?", (inode_p,))
-
-        for i, row in enumerate(self.cursor):
+        for i, (inode, name) in enumerate(entries):
             if i < start_index:
                 continue
-            name = row['name']
-            inode = row['inode']
             if not pyfuse3.readdir_reply(token, name.encode(), await self.getattr(inode), i + 1):
                 print('break')
                 break
@@ -529,45 +258,21 @@ class Operations(pyfuse3.Operations):
 
 
     async def rmdir(self, inode_p, name, ctx):
-        # build local tree for parent directory, it may be msising if user hasn't done ls yet
-        # self.refresh_dir_inode_map(inode_p)
-        self._refresh_dir(inode_p)
-        try:
-            inode = self._get_inode(inode_p, name)
-        except NoSuchRowError:
-            raise FUSEError(errno.ENOENT) # No such file or directory
-
-        path = self._get_full_path(inode)
-        (success, response) = api.post('directoryDelete', data={'path': path})
+        (success, response) = api.post('inodeDelete', data={'inode_p': inode_p, 'name': name})
         if not success:
             if response == 10:
                 raise FUSEError(errno.ENOTEMPTY) # Directory not empty
             elif response == 9:
                 raise FUSEError(errno.EACCES) # Permission denied
-            elif response == 1:
+            elif response == 22 or response == 25:
                 raise FUSEError(errno.ENOENT) # No such file or directory. but wait, what?? should not be possible
             else:
+                print(response)
                 raise(FUSEError(errno.EREMOTEIO)) # Remote I/O error
-
-        # refresh again to delete directory locally if it was deleted remotely
-        self._refresh_dir(inode_p)
-        # self.cursor.execute("DELETE FROM inode_map WHERE inode_p=? AND name=?", (inode_p, name))
 
 
     async def symlink(self, inode_p, name, target, ctx):
         raise(FUSEError(errno.ENOTSUP)) # Error: not supported
-
-
-    # def _update_paths_rename(self, inode_top, path_old, path_new):
-    #     self.cursor.execute('SELECT inode,path FROM inode_map WHERE inode_p=?', (inode_top,))
-    #     for row in self.cursor:
-    #         subdir_inode = row['inode']
-    #         subdir_path = row['path']
-    #         subdir_path_new = subdir_path.replace(path_old, path_new, 1)
-    #         subdir_name_new = subdir_path_new.split('/')[-1]
-    #         print('updating path from', subdir_path, 'to', subdir_path_new)
-    #         self.cursor.execute('UPDATE inode_map SET path=?, name=? WHERE inode=?', (subdir_path_new, subdir_name_new, subdir_inode))
-    #         self._update_paths_rename(subdir_inode, path_old, path_new)
 
 
     async def rename(self, inode_p_old, name_old, inode_p_new, name_new,
@@ -598,53 +303,17 @@ class Operations(pyfuse3.Operations):
         if flags != 0:
             raise FUSEError(errno.EINVAL)
 
-        # as always, refresh local cache before any operation
-        self._refresh_dir(inode_p_old)
-        if inode_p_new != inode_p_old:
-            self._refresh_dir(inode_p_new)
-
-        inode = self._get_inode(inode_p_old, name_old)
-
-        path_old = self._get_full_path(inode)
-        path_new_a = self._get_full_path(inode_p_new)
-        path_new_b = name_new.decode()
-        if not path_new_b.startswith('/') and not path_new_a.endswith('/'):
-            path_new_a += '/'
-        path_new = path_new_a + path_new_b
-
-        print('paths', path_old, path_new)
-
-        i_type = self._get_type(inode)
-
-        if i_type == 'd':
-            (success, response) = api.post('directoryMove', data={'path_old': path_old, 'path_new': path_new})
-            if success:
-                print('success')
-
-                if name_new.decode() != path_new.split('/')[-1]:
-                    raise(Exception('New name is not same as last part of new path?', name_new, path_new))
-
-                # Update name for moved directory
-                self.cursor.execute('UPDATE inode_map SET name=? WHERE inode=?', (name_new, inode))
-                # Update directory listing for old parent directory
-                self._refresh_dir(inode_p_old)
-                # Update directory listing for new parent directory
-                self._refresh_dir(inode_p_new)
+        (success, response) = api.post('inodeMove', data={'inode_p': inode_p_old, 'name': name_old, 'new_parent': inode_p_new, 'new_name': name_new})
+        if not success:
+            if response == 1:
+                raise(FUSEError(errno.ENOENT)) # No such file or directory
+            elif response == 6:
+                raise(FUSEError(errno.EEXIST)) # File exists
+            elif response == 9:
+                raise(FUSEError(errno.EACCES)) # Permission denied
             else:
-                if response == 1:
-                    raise(FUSEError(errno.ENOENT)) # No such file or directory
-                elif response == 6:
-                    raise(FUSEError(errno.EEXIST)) # File exists
-                elif response == 9:
-                    raise(FUSEError(errno.EACCES)) # Permission denied
-                else:
-                    raise(FUSEError(errno.EREMOTEIO)) # Remote I/O error
-        elif i_type == 'f':
-            # Moving files not implemented yet
-            raise(FUSEError(errno.ENOSYS))
-        else: # entry_type returns None if the file does not exist
-            print('returned none')
-            raise(FUSEError(errno.ENOENT))
+                print(response)
+                raise(FUSEError(errno.EREMOTEIO)) # Remote I/O error
 
 
     async def link(self, inode, new_inode_p, new_name, ctx):
@@ -720,26 +389,9 @@ class Operations(pyfuse3.Operations):
         # return await self._create(inode_p, name, mode, ctx, rdev=rdev)
 
 
-    async def mkdir(self, inode_p, name, _mode, _ctx):
-        # build local tree for parent directory, it may be msising if user hasn't done ls yet
-        self._refresh_dir(inode_p)
-
-        payload = {'name': name.decode()}
-        if inode_p != pyfuse3.ROOT_INODE:
-            parent_path = self._get_full_path(inode_p)
-            payload['parent'] = parent_path
-
-        (success, _response) = api.post('directoryCreate', payload)
-        if not success:
-            raise(Exception('Error creating directory'))
-
-        # refresh directory again to add the new directory to local cache
-        self._refresh_dir(inode_p)
-
-        inode = self._get_inode(inode_p, name)
-        return await self.getattr(inode)
-
-        # return await self._create(inode_p, name, mode, ctx)
+    async def mkdir(self, inode_p, name, _mode, ctx):
+        info = Inode.by_mkdir(inode_p, name)
+        return self._getattr(info, ctx)
 
 
     async def statfs(self, ctx):
@@ -1008,7 +660,7 @@ def parse_args():
 
 def check_connection():
     # Auth / connectivity check
-    response = api.get('directoryListRoot')
+    response = api.get('inodeInfo', {'inode': config.ROOT_INODE})
     if response is None or not response[0]:
         print('Connection error, exiting')
         exit(1)
@@ -1028,6 +680,9 @@ if __name__ == '__main__':
     if options.debug_fuse:
         fuse_options.add('debug')
     pyfuse3.init(operations, options.mountpoint, fuse_options)
+
+    if pyfuse3.ROOT_INODE != config.ROOT_INODE:
+        raise(Exception(pyfuse3.ROOT_INODE + ' ' + config.ROOT_INODE))
 
     try:
         trio.run(pyfuse3.main)
