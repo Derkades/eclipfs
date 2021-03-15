@@ -39,7 +39,7 @@ CREATE TABLE "inode" (
   "mtime" bigint NOT NULL
 );
 
-INSERT INTO "inode" VALUES (1, 1, 'False', 'ROOT', 0, 0);
+INSERT INTO "inode" VALUES (1, 1, 'False', 'IF YOU SEE THIS SOMETHING IS VERY BROKEN', 996616800, 996616800);
 
 -- CREATE TABLE "directory" (
 --   "id" serial PRIMARY KEY,

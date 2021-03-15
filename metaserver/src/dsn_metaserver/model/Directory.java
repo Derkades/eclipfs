@@ -135,8 +135,9 @@ public class Directory extends Inode {
 //	}
 	
 	public List<Directory> listDirectories() throws SQLException {
-		try (PreparedStatement query = Database.prepareStatement("SELECT * FROM inode WHERE parent=? AND is_file='False' AND id <> 0")) {
+		try (PreparedStatement query = Database.prepareStatement("SELECT * FROM inode WHERE parent=? AND is_file='False' AND id <> ?")) {
 			query.setLong(1, this.getId());
+			query.setLong(2, Inode.ROOT_INODE);
 			final List<Directory> directories = new ArrayList<>();
 			final ResultSet result = query.executeQuery();
 			while (result.next()) {

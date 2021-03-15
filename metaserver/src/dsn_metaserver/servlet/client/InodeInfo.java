@@ -3,9 +3,12 @@ package dsn_metaserver.servlet.client;
 import java.io.IOException;
 import java.sql.SQLException;
 
+import org.apache.commons.lang.Validate;
+
 import com.google.gson.stream.JsonWriter;
 
 import dsn_metaserver.model.Directory;
+import dsn_metaserver.model.File;
 import dsn_metaserver.model.Inode;
 import dsn_metaserver.servlet.HttpUtil;
 import jakarta.servlet.http.HttpServlet;
@@ -17,13 +20,17 @@ public class InodeInfo extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 
 	@Override
-	protected void doPost(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
+	protected void doGet(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
 		try {
 			if (ClientAuthentication.verify(request, response).isEmpty()) {
 				return;
 			}
 			
 			final Inode inode = HttpUtil.getInodeParameter(request, response);
+			
+			if (inode == null) {
+				return;
+			}
 			
 			try (JsonWriter writer = HttpUtil.getJsonWriter(response)) {
 				writer.beginObject();
@@ -32,15 +39,20 @@ public class InodeInfo extends HttpServlet {
 					final Directory directory = (Directory) inode;
 					writer.name("directories").beginArray();
 					for (final Directory subdir : directory.listDirectories()) {
+						writer.beginObject();
 						writeInodeInfoJson(subdir, writer);
+						writer.endObject();
 					}
 					writer.endArray();
 					writer.name("files").beginArray();
-					for (final Directory subdir : directory.listDirectories()) {
-						writeInodeInfoJson(subdir, writer);
+					for (final File file : directory.listFiles()) {
+						writer.beginObject();
+						writeInodeInfoJson(file, writer);
+						writer.endObject();
 					}
 					writer.endArray();
 				}
+				writer.endObject();
 			}
 		} catch (final SQLException e) {
 			HttpUtil.handleSqlException(response, e);
@@ -49,6 +61,8 @@ public class InodeInfo extends HttpServlet {
 	}
 	
 	static void writeInodeInfoJson(final Inode inode, final JsonWriter writer) throws IOException, SQLException {
+		Validate.notNull(inode, "Inode is null");
+		Validate.notNull(writer, "Writer is null");
 		writer.name("inode").value(inode.getId());
 		writer.name("name").value(inode.getName());
 		writer.name("path").value(inode.getAbsolutePath());

@@ -42,7 +42,7 @@ public class InodeMove extends HttpServlet {
 				return;
 			}
 			
-			final Inode inode = HttpUtil.getJsonDirectory(json, response, "inode");
+			final Inode inode = HttpUtil.getJsonInode(json, response);
 			final Directory newParent = HttpUtil.getJsonDirectory(json, response, "new_parent");
 			final String newName = HttpUtil.getJsonString(json, response, "new_name");
 			

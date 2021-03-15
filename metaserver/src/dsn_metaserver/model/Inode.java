@@ -14,7 +14,7 @@ import dsn_metaserver.exception.NotADirectoryException;
 
 public abstract class Inode {
 	
-	private static final long ROOT_INODE = 1;
+	static final long ROOT_INODE = 1;
 	
 	private final long id;
 	private long parentId;
