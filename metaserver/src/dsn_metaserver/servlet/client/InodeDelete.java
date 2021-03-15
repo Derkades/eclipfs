@@ -7,6 +7,7 @@ import java.util.Optional;
 import com.google.gson.JsonObject;
 
 import dsn_metaserver.model.Directory;
+import dsn_metaserver.model.Inode;
 import dsn_metaserver.model.User;
 import dsn_metaserver.servlet.ApiError;
 import dsn_metaserver.servlet.HttpUtil;
@@ -14,7 +15,7 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-public class DirectoryDelete extends HttpServlet {
+public class InodeDelete extends HttpServlet {
 	
 	private static final long serialVersionUID = 1L;
 
@@ -40,17 +41,17 @@ public class DirectoryDelete extends HttpServlet {
 				return;
 			}
 			
-			final Directory directory = HttpUtil.getJsonDirectory(json, response);
-			if (directory == null) {
+			final Inode inode = HttpUtil.getJsonInode(json, response);
+			if (inode == null) {
 				return;
 			}
 			
-			if (directory.isEmpty()) {
-				directory.delete();
-			} else {
+			if (inode instanceof Directory && !((Directory) inode).isEmpty()) {
 				ApiError.DIRECTORY_NOT_EMPTY.send(response);
 				return;
 			}
+			
+			inode.delete();
 			
 			HttpUtil.writeSuccessTrueJson(response);
 		} catch (final SQLException e) {

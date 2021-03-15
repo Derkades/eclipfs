@@ -39,8 +39,8 @@ import dsn_metaserver.model.Inode;
 import dsn_metaserver.servlet.client.ChunkInfo;
 import dsn_metaserver.servlet.client.ChunkTransfer;
 import dsn_metaserver.servlet.client.DirectoryCreate;
-import dsn_metaserver.servlet.client.DirectoryDelete;
 import dsn_metaserver.servlet.client.FileCreate;
+import dsn_metaserver.servlet.client.InodeDelete;
 import dsn_metaserver.servlet.client.InodeInfo;
 import dsn_metaserver.servlet.client.Move;
 import dsn_metaserver.servlet.node.Announce;
@@ -130,8 +130,8 @@ public class MetaServer {
 		handler.addServlet(ChunkInfo.class, "/client/chunkInfo");
 		handler.addServlet(ChunkTransfer.class, "/client/chunkTransfer");
 		handler.addServlet(DirectoryCreate.class, "/client/directoryCreate");
-		handler.addServlet(DirectoryDelete.class, "/client/directoryDelete");
 		handler.addServlet(FileCreate.class, "/client/fileCreate");
+		handler.addServlet(InodeDelete.class, "/client/inodeDelete");
 		handler.addServlet(InodeInfo.class, "/client/nodeInfo");
 		handler.addServlet(Move.class, "/client/directoryMove");
 		

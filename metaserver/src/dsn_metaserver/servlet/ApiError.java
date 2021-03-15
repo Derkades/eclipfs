@@ -32,6 +32,7 @@ public enum ApiError {
 	INODE_NOT_EXISTS(22),
 	IS_A_FILE(23),
 	NAME_ALREADY_EXISTS(24),
+	NAME_NOT_EXISTS(25),
 	
 	;
 	

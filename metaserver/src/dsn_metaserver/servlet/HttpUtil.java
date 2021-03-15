@@ -111,7 +111,21 @@ public class HttpUtil {
 	}
 	
 	public static Inode getInodeParameter(final HttpServletRequest request, final HttpServletResponse response) throws IOException, SQLException {
-		return longToInode(response, getLongParameter(request, response, "inode"));
+		if (request.getParameter("inode") != null) {
+			return longToInode(response, getLongParameter(request, response, "inode"));
+		} else {
+			final Directory parent = longToDirectory(response, getLongParameter(request, response, "inode_p"));
+			final String name = HttpUtil.getStringParameter(request, response, "name");
+			if (parent == null || name == null) {
+				return null;
+			}
+			
+			final Optional<Inode> opt = parent.getChild(name);
+			if (opt.isEmpty()) {
+				ApiError.NAME_NOT_EXISTS.send(response);
+			}
+			return opt.orElse(null);
+		}
 	}
 	
 	public static File getFileInodeParameter(final HttpServletRequest request, final HttpServletResponse response) throws IOException, SQLException {
@@ -120,6 +134,10 @@ public class HttpUtil {
 	
 	public static Directory getDirectoryInodeParameter(final HttpServletRequest request, final HttpServletResponse response) throws IOException, SQLException {
 		return longToDirectory(response, getLongParameter(request, response, "directory"));
+	}
+	
+	public static Directory getDirectoryInodeParameter(final HttpServletRequest request, final HttpServletResponse response, final String parameterName) throws IOException, SQLException {
+		return longToDirectory(response, getLongParameter(request, response, parameterName));
 	}
 	
 	public static String getStringParameter(final HttpServletRequest request, final HttpServletResponse response, final String parameterName) throws IOException {
@@ -180,8 +198,22 @@ public class HttpUtil {
 		}
 	}
 	
-	public static Inode getJsonInode(final JsonObject json, final HttpServletResponse response, final String memberName) throws SQLException, IOException {
-		return longToInode(response, getJsonLong(json, response, memberName));
+	public static Inode getJsonInode(final JsonObject json, final HttpServletResponse response) throws SQLException, IOException {
+		if (json.has("inode")) {
+			return longToInode(response, getJsonLong(json, response, "inode"));
+		} else {
+			final Directory parent = longToDirectory(response, getJsonLong(json, response, "inode_p"));
+			final String name = getJsonString(json, response, "name");
+			if (parent == null || name == null) {
+				return null;
+			}
+			
+			final Optional<Inode> opt = parent.getChild(name);
+			if (opt.isEmpty()) {
+				ApiError.NAME_NOT_EXISTS.send(response);
+			}
+			return opt.orElse(null);
+		}
 	}
 	
 	public static File getJsonFile(final JsonObject json, final HttpServletResponse response) throws SQLException, IOException {

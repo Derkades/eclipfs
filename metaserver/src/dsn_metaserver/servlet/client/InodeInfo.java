@@ -3,7 +3,6 @@ package dsn_metaserver.servlet.client;
 import java.io.IOException;
 import java.sql.SQLException;
 
-import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonWriter;
 
 import dsn_metaserver.model.Directory;
@@ -24,17 +23,7 @@ public class InodeInfo extends HttpServlet {
 				return;
 			}
 			
-			final JsonObject json = HttpUtil.readJsonFromRequestBody(request, response);
-			
-			if (json == null) {
-				return;
-			}
-			
 			final Inode inode = HttpUtil.getInodeParameter(request, response);
-			
-			if (inode == null) {
-				return;
-			}
 			
 			try (JsonWriter writer = HttpUtil.getJsonWriter(response)) {
 				writer.beginObject();
@@ -60,6 +49,7 @@ public class InodeInfo extends HttpServlet {
 	}
 	
 	static void writeInodeInfoJson(final Inode inode, final JsonWriter writer) throws IOException, SQLException {
+		writer.name("inode").value(inode.getId());
 		writer.name("name").value(inode.getName());
 		writer.name("path").value(inode.getAbsolutePath());
 		writer.name("type").value(inode.isFile() ? "f" : "d");
