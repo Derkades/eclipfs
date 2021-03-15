@@ -9,3 +9,4 @@ MODE_FILE = 0o664
 
 # Do not change this
 CHUNKSIZE = 1_000_000
+ROOT_INODE = 1

@@ -14,6 +14,8 @@ import dsn_metaserver.exception.NotADirectoryException;
 
 public abstract class Inode {
 	
+	private static final long ROOT_INODE = 1;
+	
 	private final long id;
 	private long parentId;
 	private String name;
@@ -37,7 +39,7 @@ public abstract class Inode {
 	}
 	
 	public boolean isRootDirectory() {
-		return this.getId() == 0;
+		return this.getId() == ROOT_INODE;
 	}
 
 	public final long getParentId() {
@@ -71,7 +73,7 @@ public abstract class Inode {
 		
 		String path = "";
 		Inode inode = this;
-		while (inode.getId() != 0) {
+		while (!inode.isRootDirectory()) {
 			path = "/" + inode.getName() + path;
 			inode = inode.getParent();
 		}
@@ -155,7 +157,7 @@ public abstract class Inode {
 	
 	public static Directory getRootInode() throws SQLException {
 		// TODO cache
-		return (Directory) byId(0).get();
+		return (Directory) byId(ROOT_INODE).get();
 	}
 	
 	public void move(final Directory newParent, final String newName) throws SQLException, AlreadyExistsException {
