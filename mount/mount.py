@@ -5,7 +5,7 @@ import sys
 import pyfuse3
 import errno
 import stat
-from time import time
+from time import time, sleep
 import sqlite3
 import logging
 from collections import defaultdict
@@ -90,58 +90,81 @@ class Operations(pyfuse3.Operations):
         print('upload chunk')
 
 
-    def _clear_write_buffer(self, time_before=None):
-        print('clear write buffer')
+    def _clear_write_buffer(self, force=False):
+        print('clear write buffer', force)
+
         self.write_lock.acquire()
+
+        if not force:
+            num_entries = self._get_row('SELECT COUNT(*) FROM write_buffer')[0]
+            print('Write buffer contains', num_entries, 'entries')
+            if num_entries < 10:
+                print('skip clearing write buffer')
+                self.write_lock.release()
+                return
+
         try:
             inode = self._get_row('SELECT inode FROM write_buffer LIMIT 1')['inode']
         except NoSuchRowError:
             print('Write queue is empty')
             inode = None
 
-        while inode:
-            # Note: one inode in the write buffer may appear multiple times, with different chunk indices. We only selet one
-            (data, chunk_index) = self._get_row('SELECT data,chunk_index FROM write_buffer WHERE inode=? LIMIT 1', (inode,))
-            # info = Inode.by_inode(inode)
-            # inode_p = self._get_parent(inode)
-            # dir_path = self._get_full_path(inode_p)
-            # file_name = self._get_name(inode)
+        failure = True # so the loop runs once
+        while failure:
+            failure = False
 
-            checksum = hashlib.md5(data).hexdigest()
-            size = len(data)
+            while inode:
+                # Note: one inode in the write buffer may appear multiple times, with different chunk indices. We only selet one
+                (data, chunk_index) = self._get_row('SELECT data,chunk_index FROM write_buffer WHERE inode=? LIMIT 1', (inode,))
+                # info = Inode.by_inode(inode)
+                # inode_p = self._get_parent(inode)
+                # dir_path = self._get_full_path(inode_p)
+                # file_name = self._get_name(inode)
 
-            print('making chunkTransfer request', inode, chunk_index, checksum, size, inode)
+                checksum = hashlib.md5(data).hexdigest()
+                size = len(data)
 
-            (success, response) = api.post('chunkTransfer', data={'file': inode, 'chunk': chunk_index, 'type': 'upload', 'checksum': checksum, 'size': size})
+                print('making chunkTransfer request', inode, chunk_index, checksum, size, inode)
 
-            if not success:
-                print('FAILED TO REQUEST CHUNK TRANSFER', inode, chunk_index)
-                self.write_lock.release()
-                raise(FUSEError(errno.EREMOTEIO))
+                (success, response) = api.post('chunkTransfer', data={'file': inode, 'chunk': chunk_index, 'type': 'upload', 'checksum': checksum, 'size': size})
 
-            url = response['url']
+                if not success:
+                    print('FAILED TO REQUEST CHUNK TRANSFER', inode, chunk_index)
+                    failure = True
+                    # self.write_lock.release()
+                    # raise(FUSEError(errno.EREMOTEIO))
+                    break
 
-            r = requests.post(url, data=data, headers={'Content-Type':'application/octet-stream'})
+                url = response['url']
 
-            if r.status_code != 200:
-                print('FAILED TO UPLOAD CHUNK status code', r.status_code, r.content)
-                self.write_lock.release()
-                raise(FUSEError(errno.EREMOTEIO))
+                r = requests.post(url, data=data, headers={'Content-Type':'application/octet-stream'})
 
-            # TODO in the future: instead of simply removing from write buffer, move to read cache
+                if r.status_code != 200:
+                    print('FAILED TO UPLOAD CHUNK status code', r.status_code, r.content)
+                    failure = True
+                    break
+                    # self.write_lock.release()
+                    # raise(FUSEError(errno.EREMOTEIO))
 
-            # Remove the one chunk inode+chunk_index we just uplaoded. If there are different chunk indices for this inode in the write buffer,
-            # the same inode may be picked again for the next loop.
-            print('upload appears successful, removing from write buffer')
-            self.cursor.execute('DELETE FROM write_buffer WHERE inode=? AND chunk_index=?', (inode, chunk_index))
+                # TODO in the future: instead of simply removing from write buffer, move to read cache
 
-            try:
-                inode = self._get_row('SELECT inode FROM write_buffer LIMIT 1')['inode']
-                print('Not done yet, there are more entries in the write buffer...')
-            except NoSuchRowError:
-                inode = None
+                # Remove the one chunk inode+chunk_index we just uplaoded. If there are different chunk indices for this inode in the write buffer,
+                # the same inode may be picked again for the next loop.
+                print('upload appears successful, removing from write buffer')
+                self.cursor.execute('DELETE FROM write_buffer WHERE inode=? AND chunk_index=?', (inode, chunk_index))
 
-        print('done clearing write buffer')
+                try:
+                    inode = self._get_row('SELECT inode FROM write_buffer LIMIT 1')['inode']
+                    print('Not done yet, there are more entries in the write buffer...')
+                except NoSuchRowError:
+                    inode = None
+
+            if failure:
+                print('Errors were encountered while clearing the write buffer. Trying again in 5 seconds...')
+                sleep(5)
+            else:
+                print('done clearing write buffer')
+
         self.write_lock.release()
 
 
@@ -403,8 +426,8 @@ class Operations(pyfuse3.Operations):
         return self._getattr(info, ctx)
 
 
-    async def statfs(self, ctx):
-        raise(NotImplementedError('statfs not yet supported'))
+    # async def statfs(self, ctx):
+        # raise(NotImplementedError('statfs not yet supported'))
         # stat_ = pyfuse3.StatvfsData()
 
         # stat_.f_bsize = 512
@@ -591,6 +614,7 @@ class Operations(pyfuse3.Operations):
                     chunk_data = b''
                 else:
                     print('Unknown download error', status, response)
+                    self.write_lock.release()
                     raise(FUSEError(errno.EREMOTEIO))
 
             # pad chunk with zero bytes if it's not the last chunk, so chunks align properly
@@ -620,8 +644,13 @@ class Operations(pyfuse3.Operations):
         return len(buf)
 
 
+    async def fsync(self, fh, datasync):
+        self._clear_write_buffer(force=True)
+
+
     async def release(self, fh):
         print('release', fh)
+        self._clear_write_buffer(force=True)
         # print('Release not implemented')
         # raise(FUSEError(errno.ENOSYS))
         # self.inode_open_count[fh] -= 1
@@ -669,6 +698,7 @@ def parse_args():
 
     return parser.parse_args()
 
+
 def check_connection():
     # Auth / connectivity check
     response = api.get('inodeInfo', {'inode': config.ROOT_INODE})
@@ -678,6 +708,7 @@ def check_connection():
     else:
         print('Connection check successful')
 
+
 if __name__ == '__main__':
     check_connection()
 
@@ -685,20 +716,23 @@ if __name__ == '__main__':
     init_logging(options.debug)
     operations = Operations()
 
+    if pyfuse3.ROOT_INODE != config.ROOT_INODE:
+        raise(Exception(pyfuse3.ROOT_INODE + ' ' + config.ROOT_INODE))
+
     fuse_options = set(pyfuse3.default_options)
     fuse_options.add('fsname=eclipfs')
-    fuse_options.discard('default_permissions')
+    fuse_options.add('allow_other')
+    # fuse_options.discard('default_permissions')
     if options.debug_fuse:
         fuse_options.add('debug')
     pyfuse3.init(operations, options.mountpoint, fuse_options)
 
-    if pyfuse3.ROOT_INODE != config.ROOT_INODE:
-        raise(Exception(pyfuse3.ROOT_INODE + ' ' + config.ROOT_INODE))
-
     try:
+        log.debug('Entering main loop..')
         trio.run(pyfuse3.main)
     except:
         pyfuse3.close(unmount=False)
         raise
 
+    log.debug('Unmounting..')
     pyfuse3.close()

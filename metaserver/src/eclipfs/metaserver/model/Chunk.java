@@ -17,7 +17,7 @@ public class Chunk {
 	
 	private final long id;
 	private final int index;
-	private final long size;
+	private long size;
 	private final byte[] checksum;
 	private final String token;
 	
@@ -45,6 +45,15 @@ public class Chunk {
 	
 	public long getSize() {
 		return this.size;
+	}
+	
+	public void setSize(final long size) throws SQLException {
+		try (PreparedStatement query = Database.prepareStatement("UPDATE chunk SET size=? WHERE id=?")) {
+			query.setLong(1, size);
+			query.setLong(2, this.id);
+			query.execute();
+			this.size = size;
+		}
 	}
 	
 	public File getFile() {

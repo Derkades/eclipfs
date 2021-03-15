@@ -33,6 +33,7 @@ def announce():
 
 
 def notify_chunk_uploaded(chunk_token, chunk_size):
+    print('notify chunk uploaded')
     data = {
         'chunk_token': chunk_token,
         'chunk_size': chunk_size,

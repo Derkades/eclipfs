@@ -134,6 +134,7 @@ def upload():
         return Response('ok', content_type='text/plain')
     else:
         # TODO delete the chunk when this fails
+        # later note: is this necessary? won't garbage collection take care of it?
         print('error sending chunk upload notification to master server:', response, error_message)
         abort(500, 'Unable to send chunk upload notification to master server')
 
@@ -152,10 +153,14 @@ def replicate():
 
     data = read_chunk(chunk_token)
     if not data:
-        return abort(404, 'Chunk not found. Is the token valid and of the correct length?')
+        abort(404, 'Chunk not found. Is the token valid and of the correct length?')
 
     address = request.args['address']
-    requests.post(address, headers={'Content-Type': 'application/octet-stream'}, data=data)
+    r = requests.post(address, headers={'Content-Type': 'application/octet-stream'}, data=data)
+    if r.status_code == 200:
+        return Response('ok', content_type='text/plain')
+    else:
+        abort(500, r.text)
 
 
 @app.route('/download', methods=['GET'])

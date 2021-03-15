@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import com.google.gson.JsonObject;
 
+import eclipfs.metaserver.Replication;
 import eclipfs.metaserver.model.Chunk;
 import eclipfs.metaserver.model.Node;
 import eclipfs.metaserver.servlet.ApiError;
@@ -21,7 +22,6 @@ public class NotifyChunkUploaded  extends HttpServlet {
 	@Override
 	protected void doPost(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
 		try {
-			System.out.println("TEST");
 			final Optional<Node> optNode = NodeAuthentication.verify(request, response);
 			if (optNode.isEmpty()) {
 				return;
@@ -53,6 +53,8 @@ public class NotifyChunkUploaded  extends HttpServlet {
 			}
 			
 			chunk.addNode(node);
+			
+			Replication.addToCheckQueue(chunk);
 	
 			final JsonObject jsonResponse = new JsonObject();
 			jsonResponse.addProperty("success", true);

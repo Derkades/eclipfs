@@ -2,9 +2,8 @@ version: '3'
 
 services:
 
-  node:
+  node_a:
     build: .
-    container_name: node
     ports: [8000:80]
     volumes: ['/opt/chunkserver1:/data']
     environment:
@@ -12,3 +11,13 @@ services:
       METASERVER_ADDRESS: http://10.0.0.124:7779
       OWN_ADDRESS: 'http://10.0.0.124:8000'
       LABEL: A
+
+  node_b:
+    build: .
+    ports: [8001:80]
+    volumes: ['/opt/chunkserver1:/data']
+    environment:
+      TOKEN: Ovw8fQdOUwrF55xKrfviGIWRLRdKFTq7spjKZVRVwzYb4s0JfVa9kW8su9uJqTZTQkjlNYqXe3x3mEqHKMu4GWE4wrhwYUbqSfxoyUqVBfihqWosS7Ni6DPzgzOfo0gx
+      METASERVER_ADDRESS: http://10.0.0.124:7779
+      OWN_ADDRESS: 'http://10.0.0.124:8001'
+      LABEL: B

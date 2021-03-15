@@ -3,6 +3,8 @@ package eclipfs.metaserver.model;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import org.apache.commons.lang.RandomStringUtils;
@@ -112,6 +114,27 @@ public class File extends Inode {
 			} else {
 				return Optional.empty();
 			}
+		}
+	}
+	
+	public int getMaxChunkIndex() throws SQLException {
+		try (PreparedStatement query = Database.prepareStatement("SELECT MAX(index) FROM \"chunk\" WHERE file=?")) {
+			query.setLong(1, this.getId());
+			final ResultSet result = query.executeQuery();
+			result.next();
+			return result.getInt(1);
+		}
+	}
+
+	public List<Long> listChunkIds() throws SQLException {
+		try (PreparedStatement query = Database.prepareStatement("SELECT id FROM \"chunk\" WHERE file=?")) {
+			query.setLong(1, this.getId());
+			final ResultSet result = query.executeQuery();
+			final List<Long> ids = new ArrayList<>();
+			while (result.next()) {
+				ids.add(result.getLong(1));
+			}
+			return ids;
 		}
 	}
 	

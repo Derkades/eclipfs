@@ -1,6 +1,10 @@
 package eclipfs.metaserver.model;
 
+import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -13,7 +17,9 @@ import java.util.Optional;
 
 import org.apache.commons.lang3.Validate;
 
+import eclipfs.metaserver.TransferType;
 import eclipfs.metaserver.Tunables;
+import eclipfs.metaserver.Validation;
 import eclipfs.metaserver.exception.NodeNotFoundException;
 
 public class OnlineNode extends Node {
@@ -61,11 +67,27 @@ public class OnlineNode extends Node {
 	}
 	
 	public URL getAddress() {
+		Validate.notNull(this.address);
 		return this.address;
 	}
 	
 	public String getLabel() {
+		Validate.notNull(this.label);
 		return this.label;
+	}
+	
+	public boolean requestReplicate(final Chunk chunk, final OnlineNode target) throws IOException {
+		final String targetAddress = target.getAddress() + "/upload?chunk_token=" + chunk.getToken() + "&node_token=" + target.getToken(TransferType.UPLOAD);
+		Validation.validateUrl(targetAddress);
+		final HttpURLConnection connection = (HttpURLConnection) new URL(this.getAddress() + "/replicate?chunk_token=" + chunk.getToken() + "&node_token=" + this.getFullToken() + "&address=" + URLEncoder.encode(targetAddress, StandardCharsets.UTF_8)).openConnection();
+		connection.setRequestMethod("POST");
+		if (connection.getResponseCode() == 200) {
+			return true;
+		} else {
+			final byte[] bResponse = connection.getErrorStream().readAllBytes();
+			final String response = new String(bResponse, StandardCharsets.UTF_8);
+			throw new IOException("Received response code " + connection.getResponseCode() + " when trying to replicate chunk\n" + response);
+		}
 	}
 	
 	public static void processNodeAnnounce(final String token, final String version,
@@ -103,9 +125,10 @@ public class OnlineNode extends Node {
 				}
 				
 				final OnlineNode node = new OnlineNode(optNode.get());
-				node.updateAddress(address);
 				node.lastAnnounce = System.currentTimeMillis();
 				node.freeSpace = freeSpace;
+				node.label = label;
+				node.updateAddress(address);
 				ONLINE_NODES.add(node);
 				BY_ID.put(node.getId(), node);
 				BY_TOKEN.put(token, node);
