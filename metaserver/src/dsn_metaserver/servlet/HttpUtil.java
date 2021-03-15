@@ -110,6 +110,10 @@ public class HttpUtil {
 		}
 	}
 	
+	public static Inode getInodeParameter(final HttpServletRequest request, final HttpServletResponse response) throws IOException, SQLException {
+		return longToInode(response, getLongParameter(request, response, "inode"));
+	}
+	
 	public static File getFileInodeParameter(final HttpServletRequest request, final HttpServletResponse response) throws IOException, SQLException {
 		return longToFile(response, getLongParameter(request, response, "file"));
 	}

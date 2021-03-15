@@ -49,19 +49,19 @@ public class DirectoryCreate extends HttpServlet {
 				return;
 			}
 			
-			Directory newDirectory;
+			Directory directory;
 			try {
-				newDirectory = parent.createDirectory(name);
+				directory = parent.createDirectory(name);
 			} catch (final AlreadyExistsException e) {
 				ApiError.DIRECTORY_ALREADY_EXISTS.send(response);
 				return;
 			}
 			
-			try (JsonWriter jsonResponse = new JsonWriter(response.getWriter())) {
-				jsonResponse.beginObject();
-				jsonResponse.name("directory");
-				DirectoryInfo.writeDirectoryInfoJson(newDirectory, jsonResponse);
-				jsonResponse.endObject();
+			try (JsonWriter writer = new JsonWriter(response.getWriter())) {
+				writer.beginObject();
+				writer.name("directory");
+				InodeInfo.writeInodeInfoJson(directory, writer);
+				writer.endObject();
 			}
 		} catch (final SQLException e) {
 			HttpUtil.handleSqlException(response, e);

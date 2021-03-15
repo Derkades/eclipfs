@@ -61,11 +61,11 @@ public class FileCreate extends HttpServlet {
 				throw new IllegalStateException(e);
 			}
 			
-			try (JsonWriter jsonResponse = HttpUtil.getJsonWriter(response)) {
-				jsonResponse.beginObject();
-				jsonResponse.name("file");
-				FileInfo.writeFileInfoJson(file, jsonResponse);
-				jsonResponse.endObject();
+			try (JsonWriter writer = HttpUtil.getJsonWriter(response)) {
+				writer.beginObject();
+				writer.name("file");
+				InodeInfo.writeInodeInfoJson(file, writer);
+				writer.endObject();
 			}
 		} catch (final SQLException e) {
 			HttpUtil.handleSqlException(response, e);

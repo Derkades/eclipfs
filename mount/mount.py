@@ -46,16 +46,16 @@ class Operations(pyfuse3.Operations):
         self.write_lock = threading.Lock()
 
     def init_tables(self):
-        self.cursor.execute("""
-        CREATE TABLE inode_map (
-            inode           INTEGER PRIMARY KEY,
-            inode_p         INTEGER NOT NULL,
-            name            TEXT NOT NULL,
-            is_dir          BOOLEAN NOT NULL,
-            size            LONG NOT NULL,
-            UNIQUE(inode_p, name)
-        )
-        """)
+        # self.cursor.execute("""
+        # CREATE TABLE inode_map (
+        #     inode           INTEGER PRIMARY KEY,
+        #     inode_p         INTEGER NOT NULL,
+        #     name            TEXT NOT NULL,
+        #     is_dir          BOOLEAN NOT NULL,
+        #     size            LONG NOT NULL,
+        #     UNIQUE(inode_p, name)
+        # )
+        # """)
 
         # Skip inode=1, this is already used by the root dir
         self.cursor.execute("INSERT INTO inode_map VALUES (1, 0, 'ROOT_DIRECTORY', 1, 0)")
