@@ -10,6 +10,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonWriter;
 
 import eclipfs.metaserver.Nodes;
+import eclipfs.metaserver.Replication;
 import eclipfs.metaserver.TransferType;
 import eclipfs.metaserver.Validation;
 import eclipfs.metaserver.model.Chunk;
@@ -123,6 +124,8 @@ public class ChunkTransfer extends HttpServlet {
 				}
 				writer.endObject();
 			}
+			
+			Replication.signalBusy();
 		} catch (final SQLException e) {
 			HttpUtil.handleSqlException(response, e);
 		}

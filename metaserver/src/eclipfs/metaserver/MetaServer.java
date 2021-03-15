@@ -4,6 +4,9 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -81,6 +84,9 @@ public class MetaServer {
 		WORKING_DIRECTORY = Inode.getRootInode();
 
 		startWebServer();
+		
+		final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+		executor.scheduleAtFixedRate(Replication::start, 15, 15, TimeUnit.SECONDS);
 
 		final LineReader reader = LineReaderBuilder.builder().build();
 		while (true) {
