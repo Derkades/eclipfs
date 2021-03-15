@@ -116,7 +116,7 @@ public class ChunkTransfer extends HttpServlet {
 				throw new IllegalStateException(transferType.name());
 			}
 			
-			final Optional<OnlineNode> optNode = Nodes.selectNode(chunk, transferType, null, null);
+			final Optional<OnlineNode> optNode = Nodes.selectNode(chunk, transferType);
 
 			if (optNode.isEmpty()) {
 				ApiError.FILE_DOWNLOAD_NODES_UNAVAILABLE.send(response);

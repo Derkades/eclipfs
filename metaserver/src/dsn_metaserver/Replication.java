@@ -5,8 +5,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.Set;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
+import dsn_metaserver.Nodes.FilterStrategy;
 import dsn_metaserver.model.Chunk;
 import dsn_metaserver.model.OnlineNode;
 
@@ -26,10 +29,6 @@ public class Replication {
 		CHUNK_CHECK_QUEUE.add(chunk.getId());
 	}
 	
-	private static int calculateReplication(final List<OnlineNode> nodes) {
-		nodes.stream().map(OnlineNode::getLabel)
-	}
-	
 	public static void start() throws SQLException {
 		LOGGER.info("Starting replication");
 		while (!CHUNK_CHECK_QUEUE.isEmpty()) {
@@ -41,6 +40,27 @@ public class Replication {
 			}
 			final Chunk chunk = optChunk.get();
 			final List<OnlineNode> nodes = chunk.getOnlineNodes();
+			final Set<String> existingLabels = nodes.stream().map(OnlineNode::getLabel).distinct().collect(Collectors.toSet());
+			final int replication = existingLabels.size();
+			final String chunkStr = chunk.getFile().getId() + "." + chunk.getId();
+			if (replication > Tunables.REPLICATION_GOAL) {
+				LOGGER.info("Chunk " + chunkStr + " is overgoal");
+				continue;
+			} else if (replication == Tunables.REPLICATION_GOAL) {
+				LOGGER.info("Chunk " + chunkStr + " is replicated correctly");
+				continue;
+			}
+			
+			LOGGER.info("Chunk " + chunkStr + " is undergoal");
+			final Optional<OnlineNode> optReplicationTargetNode = Nodes.selectNode(chunk, TransferType.UPLOAD, FilterStrategy.MUST_NOT, existingLabels);
+			if (optReplicationTargetNode.isEmpty()) {
+				LOGGER.warning("Cannot replicate chunk, not enough available nodes");
+				continue;
+			}
+			final OnlineNode replicationTargetNode = optReplicationTargetNode.get();
+			final Optional<OnlineNode> optReplicationSourceNode = Nodes.selectNode(chunk, TransferType.DOWNLOAD);
+			// TODO replicate
+			throw new UnsupportedOperationException();
 		}
 		LOGGER.info("Replication completed");
 	}

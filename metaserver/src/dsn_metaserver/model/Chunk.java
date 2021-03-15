@@ -12,7 +12,6 @@ import org.apache.commons.lang.Validate;
 import org.springframework.security.crypto.codec.Hex;
 
 import dsn_metaserver.Database;
-import dsn_metaserver.exception.NotExistsException;
 
 public class Chunk {
 	
@@ -48,7 +47,7 @@ public class Chunk {
 		return this.size;
 	}
 	
-	public File getFile() throws NotExistsException, SQLException {
+	public File getFile() {
 		return this.file;
 	}
 	
