@@ -188,7 +188,7 @@ def announce():
 
 def timers():
     announce()
-    schedule.every(5).to(10).seconds.do(announce)
+    schedule.every(30).to(60).seconds.do(announce)
     while True:
         schedule.run_pending()
         sleep(1)
