@@ -67,6 +67,33 @@ public abstract class Inode {
 		return this.mtime;
 	}
 	
+	private static final String[] SIZE_SUFFIX = {
+			"B",
+			"KB",
+			"MB",
+			"GB",
+			"TB"
+	};
+	
+	private static final double[] SIZE_DIV = {
+			1,
+			1e3,
+			1e6,
+			1e9,
+			1e12,
+			1e15,
+	};
+	
+	public String getFormattedSize() throws SQLException {
+		final long size = this.getSize();
+		for (int i = 0; i < SIZE_SUFFIX.length; i++) {
+			if (size < SIZE_DIV[i+1]) {
+				return String.format("%.2f%s", size / SIZE_DIV[i], SIZE_SUFFIX[i]);
+			}
+		}
+		throw new IllegalStateException("File is 1PB or larger??");
+	}
+	
 	public synchronized final void setMtime(final long mtime) throws SQLException {
 		try (Connection conn = Database.getConnection();
 				PreparedStatement query = conn.prepareStatement("UPDATE inode SET mtime=? WHERE id=?")) {
