@@ -28,7 +28,7 @@ public class ChangeDirectoryCommand extends Command {
 		final Optional<Inode> opt = Inode.findByPath(path);
 		
 		if (opt.isEmpty()) {
-			System.out.print("This directory does not exist");
+			System.out.println("This directory does not exist");
 			return;
 		}
 		
