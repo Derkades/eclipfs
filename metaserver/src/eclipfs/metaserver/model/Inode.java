@@ -20,7 +20,7 @@ public abstract class Inode {
 	private long parentId;
 	private String name;
 	private final long ctime;
-	private final long mtime;
+	private long mtime;
 	
 	protected Inode(final ResultSet result) throws SQLException {
 		this.id = result.getLong("id");
@@ -64,6 +64,15 @@ public abstract class Inode {
 
 	public final long getMtime() {
 		return this.mtime;
+	}
+	
+	public synchronized final void setMtime(final long mtime) throws SQLException {
+		try (PreparedStatement query = Database.prepareStatement("UPDATE inode SET mtime=? WHERE id=?")) {
+			query.setLong(1, mtime);
+			query.setLong(2, this.getId());
+			query.execute();
+			this.mtime = mtime;
+		}
 	}
 	
 	public String getAbsolutePath() throws SQLException {

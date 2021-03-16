@@ -47,6 +47,8 @@ public class NotifyChunkUploaded  extends HttpServlet {
 			}
 			final Chunk chunk = optChunk.get();
 			
+			chunk.getFile().setMtime(System.currentTimeMillis());
+			
 			if (chunk.getSize() != chunkSize) {
 				ApiError.SIZE_MISMATCH.send(response, "expected " + chunk.getSize() + " got " + chunkSize);
 				return;
