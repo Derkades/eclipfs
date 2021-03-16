@@ -1,7 +1,39 @@
 import config
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
+from requests_toolbelt import sessions
 import base64
 import json as jsonlib
+
+DEFAULT_TIMEOUT = 30
+
+class TimeoutHTTPAdapter(HTTPAdapter):
+    def __init__(self, *args, **kwargs):
+        self.timeout = DEFAULT_TIMEOUT
+        if "timeout" in kwargs:
+            self.timeout = kwargs["timeout"]
+            del kwargs["timeout"]
+        super().__init__(*args, **kwargs)
+
+    def send(self, request, **kwargs):
+        timeout = kwargs.get("timeout")
+        if timeout is None:
+            kwargs["timeout"] = self.timeout
+        return super().send(request, **kwargs)
+
+
+retries = Retry(
+    total=200,
+    status_forcelist=[429],
+    method_whitelist=['GET', 'POST'],
+    backoff_factor=0.3
+)
+
+http = sessions.BaseUrlSession(base_url=config.METASERVER)
+adapter = TimeoutHTTPAdapter(max_retries=retries)
+http.mount("http://", adapter)
+http.mount("https://", adapter)
 
 def get_headers():
     return {
@@ -10,9 +42,9 @@ def get_headers():
     }
 
 def get(api_method, params={}):
-    url = f"{config.METASERVER}/client/{api_method}"
+    url = '/client/' + api_method
     print("Making request", url, params)
-    r = requests.get(url, headers=get_headers(), params=params)
+    r = http.get(url, headers=get_headers(), params=params)
     if r.status_code == 200:
         json = r.json()
         if 'error' in json:
@@ -30,9 +62,9 @@ def get(api_method, params={}):
         print(params)
 
 def post(api_method, data):
-    url = f"{config.METASERVER}/client/{api_method}"
+    url = '/client/' + api_method
     print("Making request", url, data)
-    r = requests.post(url, headers=get_headers(), json=data)
+    r = http.post(url, headers=get_headers(), json=data)
     if r.status_code == 200:
         try:
             json = r.json()
