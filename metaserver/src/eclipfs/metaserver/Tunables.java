@@ -14,6 +14,6 @@ public class Tunables {
 	
 	public static final int NODE_OFFLINE_TIMEOUT = 60_000;
 	
-	public static final long REPLICATION_IDLE_WAIT = 30_000;
+	public static final long REPLICATION_IDLE_WAIT = 5_000;
 
 }

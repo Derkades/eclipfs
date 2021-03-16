@@ -4,6 +4,7 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -59,6 +60,8 @@ public class MetaServer {
 	
 	private static final Map<String, Command> COMMANDS = new HashMap<>();
 	
+	private static final ExecutorService THREAD_POOL = Executors.newCachedThreadPool();
+	
 	public static final boolean DEBUG = true;
 	
 	static {
@@ -86,8 +89,10 @@ public class MetaServer {
 		startWebServer();
 		
 		final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-		executor.scheduleAtFixedRate(Replication::start, 15, 15, TimeUnit.SECONDS);
+		executor.scheduleAtFixedRate(Replication::timer, 1, 30, TimeUnit.SECONDS);
 
+		THREAD_POOL.execute(Replication::run);
+		
 		final LineReader reader = LineReaderBuilder.builder().build();
 		while (true) {
 			try {

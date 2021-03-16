@@ -85,3 +85,7 @@ CREATE TABLE "chunk_node" (
 --   "id" serial PRIMARY KEY,
 --   "node" serial NOT NULL REFERENCES "node"("id")
 -- );
+
+-- Allow using TABLESAMPLE SYSTEM_ROWS(n)
+-- https://www.postgresql.org/docs/current/tsm-system-rows.html
+CREATE EXTENSION tsm_system_rows;
