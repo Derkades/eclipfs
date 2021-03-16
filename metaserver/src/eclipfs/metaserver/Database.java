@@ -1,37 +1,31 @@
 package eclipfs.metaserver;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
 import java.sql.SQLException;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+
 public class Database {
-	
-	// TODO Load settings from environment variables
-	
-	// TODO make private
-	public static Connection getConnection() throws SQLException {
-//		MetaServer.LOGGER.info("new database connection");
+    
+    private static HikariDataSource ds;
+
+    static {
+    	// TODO Load settings from environment variables
 		final String hostname = "localhost";
 		final int port = 5432;
 		final String databaseName = "postgres";
 		final String username = "postgres";
 		final String password = "secure";
-		
-		return DriverManager.getConnection(String.format("jdbc:postgresql://%s:%s/%s", hostname, port, databaseName),
-				username, password);
-	}
+		final HikariConfig config = new HikariConfig();
+        config.setJdbcUrl(String.format("jdbc:postgresql://%s:%s/%s", hostname, port, databaseName));
+        config.setUsername(username);
+        config.setPassword(password);
+        ds = new HikariDataSource(config);
+    }
 	
-	// TODO some sort of connection pool system
-	
-	private static Connection connection = null;
-	
-	public static PreparedStatement prepareStatement(final String sql) throws SQLException {
-		if (connection == null || connection.isClosed()) {
-			connection = getConnection();
-		}
-		
-		return connection.prepareStatement(sql);
+	public static Connection getConnection() throws SQLException {
+		return ds.getConnection();
 	}
 
 }

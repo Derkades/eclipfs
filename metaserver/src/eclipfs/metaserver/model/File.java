@@ -1,5 +1,6 @@
 package eclipfs.metaserver.model;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -25,7 +26,8 @@ public class File extends Inode {
 	
 	@Override
 	public long getSize() throws SQLException {
-		try (final PreparedStatement query = Database.prepareStatement("SELECT SUM(size) FROM \"chunk\" WHERE file=?")) {
+		try (Connection conn = Database.getConnection();
+				final PreparedStatement query = conn.prepareStatement("SELECT SUM(size) FROM \"chunk\" WHERE file=?")) {
 			query.setLong(1, this.getId());
 			final ResultSet result = query.executeQuery();
 			if (result.next()) {
@@ -40,7 +42,8 @@ public class File extends Inode {
 	
 	@Override
 	public void delete() throws SQLException {
-		try (final PreparedStatement query = Database.prepareStatement("DELETE FROM inode WHERE id=?")) {
+		try (Connection conn = Database.getConnection();
+				final PreparedStatement query = conn.prepareStatement("DELETE FROM inode WHERE id=?")) {
 			query.setLong(1, this.getId());
 			query.execute();
 		}
@@ -89,7 +92,8 @@ public class File extends Inode {
 		// Do not create multiple chunks at the same time
 		synchronized(Chunk.class) {
 			Validate.isTrue(getChunk(index).isEmpty(), "Chunk already exists");
-			try (PreparedStatement query = Database.prepareStatement("INSERT INTO \"chunk\" (index, size, file, checksum, token) VALUES (?,?,?,?,?) RETURNING *")) {
+			try (Connection conn = Database.getConnection();
+					PreparedStatement query = conn.prepareStatement("INSERT INTO \"chunk\" (index, size, file, checksum, token) VALUES (?,?,?,?,?) RETURNING *")) {
 				query.setInt(1, index);
 				query.setLong(2, size);
 				query.setLong(3, this.getId());
@@ -105,7 +109,8 @@ public class File extends Inode {
 	public Optional<Chunk> getChunk(final int index) throws SQLException {
 		Validate.isTrue(index >= 0, "Chunk index must be positive");
 		
-		try (PreparedStatement query = Database.prepareStatement("SELECT * FROM \"chunk\" WHERE file=? AND index=?")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"chunk\" WHERE file=? AND index=?")) {
 			query.setLong(1, this.getId());
 			query.setInt(2, index);
 			final ResultSet result = query.executeQuery();
@@ -118,7 +123,8 @@ public class File extends Inode {
 	}
 	
 	public int getMaxChunkIndex() throws SQLException {
-		try (PreparedStatement query = Database.prepareStatement("SELECT MAX(index) FROM \"chunk\" WHERE file=?")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT MAX(index) FROM \"chunk\" WHERE file=?")) {
 			query.setLong(1, this.getId());
 			final ResultSet result = query.executeQuery();
 			result.next();
@@ -127,7 +133,8 @@ public class File extends Inode {
 	}
 
 	public List<Long> listChunkIds() throws SQLException {
-		try (PreparedStatement query = Database.prepareStatement("SELECT id FROM \"chunk\" WHERE file=?")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT id FROM \"chunk\" WHERE file=?")) {
 			query.setLong(1, this.getId());
 			final ResultSet result = query.executeQuery();
 			final List<Long> ids = new ArrayList<>();

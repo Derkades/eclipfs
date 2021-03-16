@@ -1,5 +1,6 @@
 package eclipfs.metaserver.model;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -67,7 +68,8 @@ public abstract class Inode {
 	}
 	
 	public synchronized final void setMtime(final long mtime) throws SQLException {
-		try (PreparedStatement query = Database.prepareStatement("UPDATE inode SET mtime=? WHERE id=?")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("UPDATE inode SET mtime=? WHERE id=?")) {
 			query.setLong(1, mtime);
 			query.setLong(2, this.getId());
 			query.execute();
@@ -101,7 +103,8 @@ public abstract class Inode {
 	
 	public static Optional<Inode> byId(final long id) throws SQLException {
 		Validate.isTrue(id >= 0, "inode must be >= 0");
-		try (PreparedStatement query = Database.prepareStatement("SELECT * FROM inode WHERE id=?")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM inode WHERE id=?")) {
 			query.setLong(1, id);
 			return optInodeFromResult(query.executeQuery());
 		}
@@ -177,7 +180,8 @@ public abstract class Inode {
 			throw new AlreadyExistsException("A file or directory with the name " + newName + " already exists");
 		}
 		
-		try (final PreparedStatement query = Database.prepareStatement("UPDATE inode SET parent=?, name=? WHERE id=?")){
+		try (Connection conn = Database.getConnection();
+				final PreparedStatement query = conn.prepareStatement("UPDATE inode SET parent=?, name=? WHERE id=?")){
 			query.setLong(1, newParent.getId());
 			query.setString(2, newName);
 			query.setLong(3, this.getId());

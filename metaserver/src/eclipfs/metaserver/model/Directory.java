@@ -1,5 +1,6 @@
 package eclipfs.metaserver.model;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -63,14 +64,16 @@ public class Directory extends Inode {
 			throw new UnsupportedOperationException("Cannot delete directory, it is not empty");
 		}
 		
-		try (PreparedStatement query = Database.prepareStatement("DELETE FROM \"inode\" WHERE id=?")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("DELETE FROM \"inode\" WHERE id=?")) {
 			query.setLong(1, this.getId());
 			query.execute();
 		}
 	}
 	
 	public boolean isEmpty() throws SQLException {
-		try (PreparedStatement query = Database.prepareStatement("SELECT id FROM inode WHERE parent=? LIMIT 1")){
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT id FROM inode WHERE parent=? LIMIT 1")){
 			query.setLong(1, this.getId());
 			return !query.executeQuery().next();
 		}
@@ -109,7 +112,8 @@ public class Directory extends Inode {
 	
 	public boolean contains(final String name) throws SQLException {
 		Validation.validateFileDirectoryName(name);
-		try (PreparedStatement query = Database.prepareStatement("SELECT id FROM inode WHERE parent=? AND name=?")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT id FROM inode WHERE parent=? AND name=?")) {
 			query.setLong(1, this.getId());
 			query.setString(2, name);
 			return query.executeQuery().next();
@@ -118,7 +122,8 @@ public class Directory extends Inode {
 	
 	public Optional<Inode> getChild(final String name) throws SQLException{
 		Validation.validateFileDirectoryName(name);
-		try (PreparedStatement query = Database.prepareStatement("SELECT * FROM inode WHERE parent=? AND name=?")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM inode WHERE parent=? AND name=?")) {
 			query.setLong(1, this.getId());
 			query.setString(2, name);
 			return optInodeFromResult(query.executeQuery());
@@ -135,7 +140,8 @@ public class Directory extends Inode {
 //	}
 	
 	public List<Directory> listDirectories() throws SQLException {
-		try (PreparedStatement query = Database.prepareStatement("SELECT * FROM inode WHERE parent=? AND is_file='False' AND id <> ?")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM inode WHERE parent=? AND is_file='False' AND id <> ?")) {
 			query.setLong(1, this.getId());
 			query.setLong(2, Inode.ROOT_INODE);
 			final List<Directory> directories = new ArrayList<>();
@@ -152,7 +158,9 @@ public class Directory extends Inode {
 		if (this.contains(name)) {
 			throw new AlreadyExistsException("A file or directory with the name " + name + " already exists");
 		}
-		try (PreparedStatement query = Database.prepareStatement("INSERT INTO inode (name,parent,is_file,ctime,mtime) VALUES (?,?,'False',?,?) RETURNING *")) {
+		
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("INSERT INTO inode (name,parent,is_file,ctime,mtime) VALUES (?,?,'False',?,?) RETURNING *")) {
 			query.setString(1, name);
 			query.setLong(2, this.getId());
 			query.setLong(3, System.currentTimeMillis());
@@ -173,7 +181,8 @@ public class Directory extends Inode {
 //	}
 	
 	public List<File> listFiles() throws SQLException {
-		try (PreparedStatement query = Database.prepareStatement("SELECT * FROM inode WHERE parent=? AND is_file='True'")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM inode WHERE parent=? AND is_file='True'")) {
 			query.setLong(1, this.getId());
 			final ResultSet result = query.executeQuery();
 			final List<File> files = new ArrayList<>();
@@ -189,7 +198,9 @@ public class Directory extends Inode {
 		if (this.contains(name)) {
 			throw new AlreadyExistsException("A file or directory with the name " + name + " already exists.");
 		}
-		try (PreparedStatement query = Database.prepareStatement("INSERT INTO inode (name,parent,is_file,ctime,mtime) VALUES (?,?,'True',?,?) RETURNING *")) {
+		
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("INSERT INTO inode (name,parent,is_file,ctime,mtime) VALUES (?,?,'True',?,?) RETURNING *")) {
 			query.setString(1, name);
 			query.setLong(2, this.getId());
 			query.setLong(3, System.currentTimeMillis());

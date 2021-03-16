@@ -1,5 +1,6 @@
 package eclipfs.metaserver.model;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -48,7 +49,8 @@ public class Chunk {
 	}
 	
 	public void setSize(final long size) throws SQLException {
-		try (PreparedStatement query = Database.prepareStatement("UPDATE chunk SET size=? WHERE id=?")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("UPDATE chunk SET size=? WHERE id=?")) {
 			query.setLong(1, size);
 			query.setLong(2, this.id);
 			query.execute();
@@ -73,7 +75,8 @@ public class Chunk {
 	}
 	
 	public List<Long> getNodeIds() throws SQLException {
-		try (PreparedStatement query = Database.prepareStatement("SELECT node FROM \"chunk_node\" WHERE chunk=?")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT node FROM \"chunk_node\" WHERE chunk=?")) {
 			query.setLong(1, this.getId());
 			final ResultSet result = query.executeQuery();
 			final List<Long> nodes = new ArrayList<>();
@@ -93,7 +96,8 @@ public class Chunk {
 	}
 	
 	public void updateChecksum(final byte[] checksum) throws SQLException {
-		try (PreparedStatement query = Database.prepareStatement("UPDATE \"chunk\" SET checksum=? WHERE id=?")){
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("UPDATE \"chunk\" SET checksum=? WHERE id=?")){
 			query.setBytes(1, checksum);
 			query.setLong(2, this.getId());
 			query.execute();
@@ -101,7 +105,8 @@ public class Chunk {
 	}
 	
 	public void updateSize(final long size) throws SQLException {
-		try (PreparedStatement query = Database.prepareStatement("UPDATE \"chunk\" SET size=? WHERE id=?")){
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("UPDATE \"chunk\" SET size=? WHERE id=?")){
 			query.setLong(1, size);
 			query.setLong(2, this.getId());
 			query.execute();
@@ -117,24 +122,28 @@ public class Chunk {
 	
 	public void addNode(final Node node) throws SQLException {
 		Validate.notNull(node, "Node is null");
-		try (PreparedStatement query = Database.prepareStatement("SELECT node FROM chunk_node WHERE node=? AND chunk=?")) {
-			query.setLong(1, node.getId());
-			query.setLong(2, this.getId());
-			if (query.executeQuery().next()) {
-				System.out.println("Ignoring addnode, node already has chunk");
-				return;
+		try (Connection conn = Database.getConnection()){
+			try (PreparedStatement query = conn.prepareStatement("SELECT node FROM chunk_node WHERE node=? AND chunk=?")) {
+				query.setLong(1, node.getId());
+				query.setLong(2, this.getId());
+				if (query.executeQuery().next()) {
+					System.out.println("Ignoring addnode, node already has chunk");
+					return;
+				}
+			}
+			
+			try (PreparedStatement query = conn.prepareStatement("INSERT INTO chunk_node(chunk, node) VALUES (?, ?)")) {
+				query.setLong(1, this.getId());
+				query.setLong(2, node.getId());
+				query.execute();
 			}
 		}
-		
-		try (PreparedStatement query = Database.prepareStatement("INSERT INTO chunk_node(chunk, node) VALUES (?, ?)")) {
-			query.setLong(1, this.getId());
-			query.setLong(2, node.getId());
-			query.execute();
-		}
+				
 	}
 	
 	public static Optional<Chunk> byId(final long id) throws SQLException {
-		try (PreparedStatement query = Database.prepareStatement("SELECT * FROM \"chunk\" WHERE id=?")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"chunk\" WHERE id=?")) {
 			query.setLong(1, id);
 			final ResultSet result = query.executeQuery();
 			if (result.next()) {
@@ -153,7 +162,8 @@ public class Chunk {
 	public static Optional<Chunk> findByToken(final String chunkToken) throws SQLException {
 		Validate.notNull(chunkToken, "Chunk token is null");
 		
-		try (PreparedStatement query = Database.prepareStatement("SELECT * FROM \"chunk\" WHERE token=?")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"chunk\" WHERE token=?")) {
 			query.setString(1, chunkToken);
 			final ResultSet result = query.executeQuery();
 			if (result.next()) {

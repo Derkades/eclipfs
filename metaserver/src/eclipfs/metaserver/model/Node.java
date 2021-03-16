@@ -1,5 +1,6 @@
 package eclipfs.metaserver.model;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -92,7 +93,8 @@ public class Node {
 	
 	public static List<Node> listNodesDatabase() throws SQLException {
 		final List<Node> nodes = new ArrayList<>();
-		try (PreparedStatement query = Database.prepareStatement("SELECT * FROM \"node\"")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"node\"")) {
 			final ResultSet result = query.executeQuery();
 			while (result.next()) {
 				nodes.add(new Node(result));
@@ -132,7 +134,8 @@ public class Node {
 	public static Node createNode() throws SQLException {
 		final String token = RandomStringUtils.randomAlphanumeric(128);
 
-		try (PreparedStatement query = Database.prepareStatement("INSERT INTO \"node\" (token) VALUES (?) RETURNING *")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("INSERT INTO \"node\" (token) VALUES (?) RETURNING *")) {
 			query.setString(1, token);
 			final ResultSet result = query.executeQuery();
 			result.next();
@@ -142,7 +145,8 @@ public class Node {
 	
 	public static void deleteNode(final Node node) throws SQLException {
 		Validate.notNull(node);
-		try (PreparedStatement query = Database.prepareStatement("DELETE FROM \"node\" WHERE id=?")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("DELETE FROM \"node\" WHERE id=?")) {
 			query.setLong(1, node.getId());
 			query.execute();
 		}
@@ -159,14 +163,16 @@ public class Node {
 
 	public static Optional<Node> byToken(final String token) throws SQLException {
 		Validate.notNull(token);
-		try (PreparedStatement query = Database.prepareStatement("SELECT * FROM \"node\" WHERE token=?")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"node\" WHERE token=?")) {
 			query.setString(1, token);
 			return resultToOptNode(query.executeQuery());
 		}
 	}
 	
 	public static Optional<Node> byId(final long id) throws SQLException {
-		try (PreparedStatement query = Database.prepareStatement("SELECT * FROM \"node\" WHERE id=?")) {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"node\" WHERE id=?")) {
 			query.setLong(1, id);
 			return resultToOptNode(query.executeQuery());
 		}
