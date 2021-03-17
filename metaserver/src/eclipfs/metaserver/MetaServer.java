@@ -48,6 +48,7 @@ import eclipfs.metaserver.servlet.client.InodeDelete;
 import eclipfs.metaserver.servlet.client.InodeInfo;
 import eclipfs.metaserver.servlet.client.InodeMove;
 import eclipfs.metaserver.servlet.node.Announce;
+import eclipfs.metaserver.servlet.node.CheckGarbage;
 import eclipfs.metaserver.servlet.node.NotifyChunkUploaded;
 
 public class MetaServer {
@@ -147,6 +148,7 @@ public class MetaServer {
 		handler.addServlet(InodeMove.class, "/client/inodeMove");
 		
 		handler.addServlet(Announce.class, "/node/announce");
+		handler.addServlet(CheckGarbage.class, "/node/checkGarbage");
 		handler.addServlet(NotifyChunkUploaded.class, "/node/notifyChunkUploaded");
 		server.setHandler(handler);
         final ServerConnector connector = new ServerConnector(server);

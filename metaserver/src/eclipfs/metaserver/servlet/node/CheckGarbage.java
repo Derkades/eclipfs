@@ -1,21 +1,25 @@
 package eclipfs.metaserver.servlet.node;
 
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Optional;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.stream.JsonWriter;
 
-import eclipfs.metaserver.Replication;
-import eclipfs.metaserver.model.Chunk;
+import eclipfs.metaserver.Database;
 import eclipfs.metaserver.model.Node;
-import eclipfs.metaserver.servlet.ApiError;
 import eclipfs.metaserver.servlet.HttpUtil;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-public class NotifyChunkUploaded extends HttpServlet {
+public class CheckGarbage extends HttpServlet {
 	
 	private static final long serialVersionUID = 1L;
 
@@ -33,32 +37,23 @@ public class NotifyChunkUploaded extends HttpServlet {
 			if (json == null) {
 				return;
 			}
-				
-			final String chunkToken = HttpUtil.getJsonString(json, response, "chunk_token");
-			final Long chunkSize = HttpUtil.getJsonLong(json, response, "chunk_size");
-			if (chunkToken == null || chunkSize == null) {
-				return;
+			
+			final JsonArray chunks = json.getAsJsonArray("chunks");
+			
+			try (JsonWriter writer = HttpUtil.getJsonWriter(response);
+					Connection conn = Database.getConnection()) {
+				writer.beginObject().name("garbage").beginArray();
+				for (final JsonElement e : chunks) {
+					try (final PreparedStatement query = conn.prepareStatement("SELECT node FROM chunk_node JOIN chunk ON chunk=id WHERE node=? AND token=?")) {
+						query.setLong(1, node.getId());
+						query.setString(2, e.getAsString());
+						final ResultSet result = query.executeQuery();
+						if (!result.next()) {
+							writer.value(e.getAsString());
+						}
+					}
+				}
 			}
-			
-			final Optional<Chunk> optChunk = Chunk.findByToken(chunkToken);
-			if (optChunk.isEmpty()) {
-				ApiError.CHUNK_NOT_EXISTS.send(response);
-				return;
-			}
-			final Chunk chunk = optChunk.get();
-			
-			chunk.getFile().setMtime(System.currentTimeMillis());
-			
-			if (chunk.getSize() != chunkSize) {
-				ApiError.SIZE_MISMATCH.send(response, "expected " + chunk.getSize() + " got " + chunkSize);
-				return;
-			}
-			
-			chunk.addNode(node);
-			
-			Replication.addToCheckQueue(chunk);
-	
-			HttpUtil.writeSuccessTrueJson(response);
 		} catch (final SQLException e) {
 			response.setStatus(500);
 			response.setContentType("text/plain");
