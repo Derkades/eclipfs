@@ -2,13 +2,9 @@ FROM python:3
 
 RUN pip install gunicorn flask schedule requests
 
-RUN mkdir /app
+RUN mkdir /app /data
 WORKDIR /app
 COPY src /app
-
-# CMD [ "gunicorn", "-b", "0.0.0.0:80", "node:app" ]
-
-RUN mkdir /data
 
 ENV DATA_DIR "/data"
 

@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+
+  node_a:
+    image: derkades/eclipfs-node
+    ports: [8000:80]
+    volumes: ['/opt/chunkserver1:/data']
+    environment:
+      TOKEN: enter token here
+      METASERVER_ADDRESS: enter address here
+      OWN_ADDRESS: enter address here
+      LABEL: A
+
+  node_b:
+    build: derkades/eclipfs-node
+    ports: [8001:80]
+    volumes: ['/opt/chunkserver2:/data']
+    environment:
+      TOKEN: enter token here
+      METASERVER_ADDRESS: enter address here
+      OWN_ADDRESS: enter address here
+      LABEL: B
