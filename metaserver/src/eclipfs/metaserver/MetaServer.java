@@ -41,6 +41,7 @@ import eclipfs.metaserver.servlet.client.ChunkInfo;
 import eclipfs.metaserver.servlet.client.ChunkTransfer;
 import eclipfs.metaserver.servlet.client.DirectoryCreate;
 import eclipfs.metaserver.servlet.client.FileCreate;
+import eclipfs.metaserver.servlet.client.GetEncryptionKey;
 import eclipfs.metaserver.servlet.client.InodeDelete;
 import eclipfs.metaserver.servlet.client.InodeInfo;
 import eclipfs.metaserver.servlet.client.InodeMove;
@@ -62,6 +63,8 @@ public class MetaServer {
 
 	public static final boolean DEBUG = true;
 
+	private static final String ENCRYPTION_KEY;
+
 	static {
 		COMMANDS.put("cd", new ChangeDirectoryCommand());
 		COMMANDS.put("del", new DeleteCommand());
@@ -74,6 +77,14 @@ public class MetaServer {
 		COMMANDS.put("up", new UpCommand());
 		COMMANDS.put("useradd", new UserAddCommand());
 		COMMANDS.put("userlist", new UserListCommand());
+
+		final String key = System.getenv("ENCRYPTION_KEY");
+		Validate.notEmpty(key, "Environment variable ENCRYPTION_KEY is not set or empty");
+		Validate.isTrue(key.length() >= 32, "Encryption password must be at least 32 characters");
+		if (key.length() > 32) {
+			System.err.println("Encryption key is longer than 32 characters. Please note that any characters after 32 are ignored.");
+		}
+		ENCRYPTION_KEY = key.substring(0, 32);
 	}
 
 	public static void main(final String[] args) throws Exception {
@@ -106,7 +117,7 @@ public class MetaServer {
 		return "dsn " + WORKING_DIRECTORY.getAbsolutePath() + " > ";
 	}
 
-	public static void runCommand(final String line) {
+	private static void runCommand(final String line) {
 		Validate.notNull(line);
 		final String[] split = line.split(" ");
 		final String name = split[0];
@@ -139,6 +150,7 @@ public class MetaServer {
 		handler.addServlet(ChunkTransfer.class, "/client/chunkTransfer");
 		handler.addServlet(DirectoryCreate.class, "/client/directoryCreate");
 		handler.addServlet(FileCreate.class, "/client/fileCreate");
+		handler.addServlet(GetEncryptionKey.class, "/client/getEncryptionKey");
 		handler.addServlet(InodeDelete.class, "/client/inodeDelete");
 		handler.addServlet(InodeInfo.class, "/client/inodeInfo");
 		handler.addServlet(InodeMove.class, "/client/inodeMove");
@@ -155,6 +167,10 @@ public class MetaServer {
         final RequestLog requestLog = new CustomRequestLog(writer, CustomRequestLog.NCSA_FORMAT);
         server.setRequestLog(requestLog);
 		server.start();
+	}
+
+	public static String getEncryptionKey() {
+		return ENCRYPTION_KEY;
 	}
 
 }

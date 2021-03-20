@@ -7,3 +7,4 @@ EclipFS is a distributed file system built for WAN
 * The filesystem should store checksums to verify data has not been altered on disk, accidentally or intentionally.
 * For ease of use, allow secure operation over the internet without a VPN.
 * No fine grained user-based permissions system to allow for simpler code with better performance. All clients can access all data. Global write access is configurable per user.
+* Chunkservers are trusted to not be malicious (perform denial of service attacks etc) but only somewhat trusted to keep data safe. Data is encrypted client-side using AES-128-CFB with a shared key before being sent to chunk servers.

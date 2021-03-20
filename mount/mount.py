@@ -5,7 +5,6 @@ import sys
 import pyfuse3
 import errno
 import stat
-# from time import sleep
 import time
 import sqlite3
 import logging
@@ -24,6 +23,9 @@ from requests.exceptions import RequestException
 import hashlib
 import time
 
+import base64
+from Crypto.Cipher import AES
+
 try:
     import faulthandler
 except ImportError:
@@ -37,7 +39,7 @@ class Operations(pyfuse3.Operations):
     supports_dot_lookup = True
     enable_writeback_cache = True
 
-    def __init__(self):
+    def __init__(self, encryption_key):
         super(Operations, self).__init__()
         self.db = sqlite3.connect(':memory:')
         self.db.text_factory = str
@@ -47,6 +49,8 @@ class Operations(pyfuse3.Operations):
         self.init_tables()
         self.read_cache_lock = threading.Lock()
         self.write_lock = threading.Lock()
+        self.encryption_key = encryption_key
+
 
     def init_tables(self):
         self.cursor.execute("""
@@ -86,8 +90,11 @@ class Operations(pyfuse3.Operations):
         return row
 
 
-    def _upload_chunk(self):
-        print('upload chunk')
+    def _get_cipher(self, inode, chunk_index):
+        key = self.encryption_key
+        # initial value needs to be 16 bytes, inode is a long (8 bytes) padded to 12 and chunk_index is a 4 byte int
+        iv = inode.to_bytes(12, byteorder='big') + chunk_index.to_bytes(4, byteorder='big')
+        return AES.new(key, AES.MODE_CFB, iv)
 
 
     def _clear_write_buffer(self, force=False):
@@ -121,8 +128,9 @@ class Operations(pyfuse3.Operations):
                 # dir_path = self._get_full_path(inode_p)
                 # file_name = self._get_name(inode)
 
-                checksum = hashlib.md5(data).hexdigest()
-                size = len(data)
+                encrypted_data = self._get_cipher(inode, chunk_index).encrypt(data)
+                checksum = hashlib.md5(encrypted_data).hexdigest()
+                size = len(encrypted_data)
 
                 print('making chunkTransfer request', inode, chunk_index, checksum, size, inode)
 
@@ -138,7 +146,7 @@ class Operations(pyfuse3.Operations):
                 url = response['url']
 
                 try:
-                    r = requests.post(url, data=data, headers={'Content-Type':'application/octet-stream'})
+                    r = requests.post(url, data=encrypted_data, headers={'Content-Type':'application/octet-stream'})
                 except RequestException:
                     print('Failed to connect to node')
                     failure = True
@@ -551,7 +559,8 @@ class Operations(pyfuse3.Operations):
         print('download finished')
         if hashlib.md5(chunk_data).hexdigest() == checksum:
             print('checksum valid! size of downloaded data:', len(chunk_data))
-            return 'success', chunk_data
+            decrypted_data = self._get_cipher(inode, chunk_index).decrypt(chunk_data)
+            return 'success', decrypted_data
         else:
             print('checksum invalid')
             return 'checksum', chunk_data
@@ -584,7 +593,7 @@ class Operations(pyfuse3.Operations):
                     print('Chunk data not in read cache for chunk index', chunk_index)
                     (status, chunk_data) = self._download_chunk(fh, chunk_index)
                     if status != 'success':
-                        print('Download error:', status, chunk_data)
+                        print('Download error:', status, len(chunk_data))
                         self.read_cache_lock.release()
                         raise(FUSEError(errno.EIO))
 
@@ -723,22 +732,29 @@ def parse_args():
     return parser.parse_args()
 
 
-def check_connection():
-    # Auth / connectivity check
-    response = api.get('inodeInfo', {'inode': config.ROOT_INODE})
+def construct_encryption_key():
+    # also serves as a connectivity check
+
+    response = api.get('getEncryptionKey', {'inode': config.ROOT_INODE})
     if response is None or not response[0]:
         print('Connection error, exiting')
         exit(1)
-    else:
-        print('Connection check successful')
+
+    (_success, response) = response
+    key = response['key'].encode()
+    if len(key) != 32:
+        print('Key must be 32 bytes long, it is', len(key), 'bytes.')
+        exit(1)
+
+    return key
 
 
 if __name__ == '__main__':
-    check_connection()
+    key = construct_encryption_key()
 
     options = parse_args()
     init_logging(options.debug)
-    operations = Operations()
+    operations = Operations(key)
 
     if pyfuse3.ROOT_INODE != config.ROOT_INODE:
         raise(Exception(pyfuse3.ROOT_INODE + ' ' + config.ROOT_INODE))
