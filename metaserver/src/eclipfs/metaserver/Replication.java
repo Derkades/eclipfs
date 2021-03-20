@@ -57,6 +57,7 @@ public class Replication {
 				}
 
 				if (CHUNK_CHECK_QUEUE.isEmpty()) {
+					addUndergoalChunks(1000);
 					continue;
 				}
 
@@ -119,44 +120,44 @@ public class Replication {
 		}
 	}
 
-	static void timer() {
-		try {
-//			addRandomChunksToQueue(20);
-			addChunksSmart(1000);
-		} catch (final SQLException e) {
-			e.printStackTrace();
-		}
-	}
+//	static void timer() {
+//		try {
+////			addRandomChunksToQueue(20);
+////			addChunksSmart(1000);
+//		} catch (final SQLException e) {
+//			e.printStackTrace();
+//		}
+//	}
 
-	@Deprecated
-	public static void addRandomChunksToQueue(final int amount) throws SQLException {
-		if (CHUNK_CHECK_QUEUE.size() > amount) {
-			LOGGER.info("Chunk queue is already quite full, not adding random chunks");
-			return;
-		}
-		try (Connection conn = Database.getConnection();
-				PreparedStatement query = conn.prepareStatement("SELECT id FROM chunk TABLESAMPLE SYSTEM_ROWS(?)")){
-			query.setInt(1, amount);
-			final ResultSet result = query.executeQuery();
-			while (result.next()) {
-				addToCheckQueue(result.getLong(1));
-			}
-		}
-	}
+//	@Deprecated
+//	public static void addRandomChunksToQueue(final int amount) throws SQLException {
+//		if (CHUNK_CHECK_QUEUE.size() > amount) {
+//			LOGGER.info("Chunk queue is already quite full, not adding random chunks");
+//			return;
+//		}
+//		try (Connection conn = Database.getConnection();
+//				PreparedStatement query = conn.prepareStatement("SELECT id FROM chunk TABLESAMPLE SYSTEM_ROWS(?)")){
+//			query.setInt(1, amount);
+//			final ResultSet result = query.executeQuery();
+//			while (result.next()) {
+//				addToCheckQueue(result.getLong(1));
+//			}
+//		}
+//	}
+//
+//	@Deprecated
+//	public static void addAllChunksToQueue() throws SQLException {
+//		try (Connection conn = Database.getConnection();
+//				PreparedStatement query = conn.prepareStatement("SELECT id FROM chunk")){
+//			final ResultSet result = query.executeQuery();
+//			while (result.next()) {
+//				System.out.println(result.getLong(1));
+//				addToCheckQueue(result.getLong(1));
+//			}
+//		}
+//	}
 
-	@Deprecated
-	public static void addAllChunksToQueue() throws SQLException {
-		try (Connection conn = Database.getConnection();
-				PreparedStatement query = conn.prepareStatement("SELECT id FROM chunk")){
-			final ResultSet result = query.executeQuery();
-			while (result.next()) {
-				System.out.println(result.getLong(1));
-				addToCheckQueue(result.getLong(1));
-			}
-		}
-	}
-
-	public static void addChunksSmart(final int limit) throws SQLException {
+	public static void addUndergoalChunks(final int limit) throws SQLException {
 		try (Connection conn = Database.getConnection();
 				PreparedStatement query = conn.prepareStatement("SELECT id FROM chunk JOIN chunk_node ON id=chunk GROUP BY chunk.id HAVING COUNT(node) < ? LIMIT ?")) {
 			query.setInt(1, Tunables.REPLICATION_GOAL);
