@@ -26,7 +26,9 @@ class Inode:
         (success, response) = response
 
         if not success:
-            if response == 6:
+            if response == 2:
+                raise(FUSEError(errno.ENOENT))
+            elif response == 6:
                 raise(FUSEError(errno.ENOENT))
             elif response == 9:
                 raise(FUSEError(errno.EACCES))
