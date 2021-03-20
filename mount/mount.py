@@ -35,7 +35,7 @@ log = logging.getLogger()
 
 class Operations(pyfuse3.Operations):
     supports_dot_lookup = True
-    enable_writeback_cache = False
+    enable_writeback_cache = True
 
     def __init__(self):
         super(Operations, self).__init__()
