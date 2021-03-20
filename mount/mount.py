@@ -5,7 +5,8 @@ import sys
 import pyfuse3
 import errno
 import stat
-from time import time, sleep
+# from time import sleep
+import time
 import sqlite3
 import logging
 from collections import defaultdict
@@ -19,6 +20,7 @@ import api
 from inode import Inode
 
 import requests
+from requests.exceptions import RequestException
 import hashlib
 import time
 
@@ -43,13 +45,13 @@ class Operations(pyfuse3.Operations):
         self.cursor = self.db.cursor()
         self.inode_open_count = defaultdict(int)
         self.init_tables()
-        self.read_lock = threading.Lock()
+        self.read_cache_lock = threading.Lock()
         self.write_lock = threading.Lock()
 
     def init_tables(self):
         self.cursor.execute("""
         CREATE TABLE write_buffer (
-            inode           INTEGER NOT NULL,
+            inode           BIGINT NOT NULL,
             chunk_index     INTEGER NOT NULL,
             data            bytea NOT NULL,
             last_update     BIGINT NOT NULL,
@@ -58,17 +60,15 @@ class Operations(pyfuse3.Operations):
         )
         """)
 
-        # self.cursor.execute("""
-        # CREATE TABLE read_cache (
-        #     inode           INTEGER NOT NULL,
-        #     directory       TEXT NOT NULL,
-        #     filename        TEXT NOT NULL,
-        #     chunk_index     INTEGER NOT NULL,
-        #     data            bytea NOT NULL,
-        #     UNIQUE(directory, filename, chunk_index),
-        #     UNIQUE(inode, chunk_index)
-        # )
-        # """)
+        self.cursor.execute("""
+        CREATE TABLE read_cache (
+            inode           BIGINT NOT NULL,
+            chunk_index     INTEGER NOT NULL,
+            data            bytea NOT NULL,
+            time            BIGINT NOT NULL,
+            UNIQUE(inode, chunk_index)
+        )
+        """)
 
     def _get_row(self, *a, **kw):
         self.cursor.execute(*a, **kw)
@@ -137,7 +137,12 @@ class Operations(pyfuse3.Operations):
 
                 url = response['url']
 
-                r = requests.post(url, data=data, headers={'Content-Type':'application/octet-stream'})
+                try:
+                    r = requests.post(url, data=data, headers={'Content-Type':'application/octet-stream'})
+                except RequestException:
+                    print('Failed to connect to node')
+                    failure = True
+                    break
 
                 if r.status_code != 200:
                     print('FAILED TO UPLOAD CHUNK status code', r.status_code, r.content)
@@ -161,7 +166,7 @@ class Operations(pyfuse3.Operations):
 
             if failure:
                 print('Errors were encountered while clearing the write buffer. Trying again in 5 seconds...')
-                sleep(5)
+                time.sleep(5)
             else:
                 print('done clearing write buffer')
 
@@ -541,7 +546,7 @@ class Operations(pyfuse3.Operations):
             return 'apierror', response
         download_url = response['url']
         checksum = response['checksum']
-        node_response = requests.get(download_url)
+        node_response = api.get_requests_session().get(download_url)
         chunk_data = node_response.content
         print('download finished')
         if hashlib.md5(chunk_data).hexdigest() == checksum:
@@ -567,10 +572,25 @@ class Operations(pyfuse3.Operations):
                 print('read: found data in local buffer')
             except NoSuchRowError:
                 print('Chunk data not in write buffer for chunk index', chunk_index)
-                (status, chunk_data) = self._download_chunk(fh, chunk_index)
-                if status != 'success':
-                    print('Download error:', status, chunk_data)
-                    raise(FUSEError(errno.EIO))
+                self.read_cache_lock.acquire()
+                try:
+                    # raise NoSuchRowError()
+                    self.cursor.execute('DELETE FROM read_cache WHERE time < ?', (int(time.time()) - 10,))
+                    chunk_data = self._get_row('SELECT data FROM read_cache WHERE inode=? AND chunk_index=?', (fh, chunk_index))['data']
+                    print('Chunk data found in read cache')
+                    # print(chunk_data)
+                    self.read_cache_lock.release()
+                except NoSuchRowError:
+                    print('Chunk data not in read cache for chunk index', chunk_index)
+                    (status, chunk_data) = self._download_chunk(fh, chunk_index)
+                    if status != 'success':
+                        print('Download error:', status, chunk_data)
+                        self.read_cache_lock.release()
+                        raise(FUSEError(errno.EIO))
+
+                    values = (fh, chunk_index, chunk_data, int(time.time()), chunk_data, int(time.time()))
+                    self.cursor.execute('INSERT INTO read_cache (inode, chunk_index, data, time) VALUES (?,?,?,?) ON CONFLICT(inode, chunk_index) DO UPDATE SET data=?, time=?', values)
+                    self.read_cache_lock.release()
 
             chunks_data += chunk_data
 
@@ -601,6 +621,10 @@ class Operations(pyfuse3.Operations):
 
         chunks_data = b''
         for chunk_index in range(start_chunk, end_chunk + 1):
+            self.read_cache_lock.acquire()
+            self.cursor.execute('DELETE FROM read_cache WHERE inode=? AND chunk_index=?', (fh, chunk_index))
+            self.read_cache_lock.release()
+
             try:
                 chunk_data = self._get_row('SELECT data FROM write_buffer WHERE inode=? AND chunk_index=?', (fh, chunk_index))['data']
             except NoSuchRowError:
