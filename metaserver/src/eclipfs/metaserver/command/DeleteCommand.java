@@ -11,11 +11,16 @@ public class DeleteCommand extends Command {
 	@Override
 	public void run(final String[] args) throws SQLException, AlreadyExistsException {
 		if (args.length != 1) {
-			System.out.println("<name>");
+			System.out.println("del <name> | <id>");
 			return;
 		}
-		
-		final Inode inode = MetaServer.WORKING_DIRECTORY.getChild(args[0]).get();
+
+		Inode inode;
+		try {
+			inode = Inode.byId(Long.parseLong(args[0])).orElseThrow(() -> new IllegalArgumentException("Invalid inode (file/directory id)"));
+		} catch (final NumberFormatException e) {
+			inode = MetaServer.WORKING_DIRECTORY.getChild(args[0]).orElseThrow(() -> new IllegalArgumentException("Invalid file/directory name"));
+		}
 		inode.delete();
 	}
 
