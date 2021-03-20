@@ -20,7 +20,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 public class CheckGarbage extends HttpServlet {
-	
+
 	private static final long serialVersionUID = 1L;
 
 	@Override
@@ -30,16 +30,16 @@ public class CheckGarbage extends HttpServlet {
 			if (optNode.isEmpty()) {
 				return;
 			}
-			
+
 			final Node node = optNode.get();
-			
+
 			final JsonObject json = HttpUtil.readJsonFromRequestBody(request, response);
 			if (json == null) {
 				return;
 			}
-			
+
 			final JsonArray chunks = json.getAsJsonArray("chunks");
-			
+
 			try (JsonWriter writer = HttpUtil.getJsonWriter(response);
 					Connection conn = Database.getConnection()) {
 				writer.beginObject().name("garbage").beginArray();
@@ -53,11 +53,10 @@ public class CheckGarbage extends HttpServlet {
 						}
 					}
 				}
+				writer.endArray().endObject();
 			}
 		} catch (final SQLException e) {
-			response.setStatus(500);
-			response.setContentType("text/plain");
-			response.getWriter().write("Database error");
+			HttpUtil.handleSqlException(response, e);
 		}
 	}
 

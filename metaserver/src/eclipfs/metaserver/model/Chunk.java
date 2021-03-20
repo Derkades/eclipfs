@@ -15,13 +15,13 @@ import org.springframework.security.crypto.codec.Hex;
 import eclipfs.metaserver.Database;
 
 public class Chunk {
-	
+
 	private final long id;
 	private final int index;
 	private long size;
 	private final byte[] checksum;
 	private final String token;
-	
+
 	private transient final File file;
 
 	Chunk(final File file, final ResultSet result) throws SQLException {
@@ -35,19 +35,19 @@ public class Chunk {
 		this.token = result.getString("token");
 		this.file = file;
 	}
-	
+
 	public long getId() {
 		return this.id;
 	}
-	
+
 	public int getIndex() {
 		return this.index;
 	}
-	
+
 	public long getSize() {
 		return this.size;
 	}
-	
+
 	public void setSize(final long size) throws SQLException {
 		try (Connection conn = Database.getConnection();
 				PreparedStatement query = conn.prepareStatement("UPDATE chunk SET size=? WHERE id=?")) {
@@ -57,23 +57,23 @@ public class Chunk {
 			this.size = size;
 		}
 	}
-	
+
 	public File getFile() {
 		return this.file;
 	}
-	
+
 	public byte[] getChecksum() {
 		return this.checksum;
 	}
-	
+
 	public String getChecksumHex() {
 		return new String(Hex.encode(this.getChecksum()));
 	}
-	
+
 	public String getToken() {
 		return this.token;
 	}
-	
+
 	public List<Long> getNodeIds() throws SQLException {
 		try (Connection conn = Database.getConnection();
 				PreparedStatement query = conn.prepareStatement("SELECT node FROM \"chunk_node\" WHERE chunk=?")) {
@@ -86,7 +86,7 @@ public class Chunk {
 			return nodes;
 		}
 	}
-	
+
 	public List<Node> getNodes() throws SQLException {
 		final List<Node> nodes = new ArrayList<>();
 		for (final long id : getNodeIds()) {
@@ -94,7 +94,14 @@ public class Chunk {
 		}
 		return nodes;
 	}
-	
+
+	public List<OnlineNode> getOnlineNodes() throws SQLException {
+		return getNodeIds().stream()
+				.map(OnlineNode::getOnlineNodeById)
+				.filter(Optional::isPresent).map(Optional::get)
+				.collect(Collectors.toUnmodifiableList());
+	}
+
 	public void updateChecksum(final byte[] checksum) throws SQLException {
 		try (Connection conn = Database.getConnection();
 				PreparedStatement query = conn.prepareStatement("UPDATE \"chunk\" SET checksum=? WHERE id=?")){
@@ -103,7 +110,7 @@ public class Chunk {
 			query.execute();
 		}
 	}
-	
+
 	public void updateSize(final long size) throws SQLException {
 		try (Connection conn = Database.getConnection();
 				PreparedStatement query = conn.prepareStatement("UPDATE \"chunk\" SET size=? WHERE id=?")){
@@ -112,14 +119,7 @@ public class Chunk {
 			query.execute();
 		}
 	}
-	
-	public List<OnlineNode> getOnlineNodes() throws SQLException {
-		return getNodeIds().stream()
-				.map(OnlineNode::getOnlineNodeById)
-				.filter(Optional::isPresent).map(Optional::get)
-				.collect(Collectors.toUnmodifiableList());
-	}
-	
+
 	public void addNode(final Node node) throws SQLException {
 		Validate.notNull(node, "Node is null");
 		try (Connection conn = Database.getConnection()){
@@ -131,16 +131,16 @@ public class Chunk {
 					return;
 				}
 			}
-			
+
 			try (PreparedStatement query = conn.prepareStatement("INSERT INTO chunk_node(chunk, node) VALUES (?, ?)")) {
 				query.setLong(1, this.getId());
 				query.setLong(2, node.getId());
 				query.execute();
 			}
 		}
-				
+
 	}
-	
+
 	public static Optional<Chunk> byId(final long id) throws SQLException {
 		try (Connection conn = Database.getConnection();
 				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"chunk\" WHERE id=?")) {
@@ -158,10 +158,10 @@ public class Chunk {
 			}
 		}
 	}
-	
+
 	public static Optional<Chunk> findByToken(final String chunkToken) throws SQLException {
 		Validate.notNull(chunkToken, "Chunk token is null");
-		
+
 		try (Connection conn = Database.getConnection();
 				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"chunk\" WHERE token=?")) {
 			query.setString(1, chunkToken);
@@ -178,7 +178,7 @@ public class Chunk {
 			}
 		}
 	}
-	
+
 //	@Deprecated
 //	public long calculateExceptedSize() {
 ////		final int chunkSize = this.file.getChunkSize();

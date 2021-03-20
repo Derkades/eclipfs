@@ -13,7 +13,6 @@ def announce():
         'address': environ['OWN_ADDRESS'],
         'quota': 100,
         'name': 'test',
-        'label': environ['LABEL'],
     }
 
     r = requests.post(environ['METASERVER_ADDRESS'] + '/node/announce', headers=HEADERS, json=data)
@@ -29,11 +28,12 @@ def announce():
         else:
             return (True, json, None)
     else:
+        print(r.text)
         return (False, None, f'Status code {r.status_code}')
 
 
 def notify_chunk_uploaded(chunk_token, chunk_size):
-    print('notify chunk uploaded')
+    # print('notify chunk uploaded')
     data = {
         'chunk_token': chunk_token,
         'chunk_size': chunk_size,
@@ -52,3 +52,21 @@ def notify_chunk_uploaded(chunk_token, chunk_size):
             return (True, json, None)
     else:
         return (False, None, f'Status code {r.status_code} - ' + str(r.content))
+
+
+def get(method, data):
+    r = requests.post(environ['METASERVER_ADDRESS'] + '/node/' + method, headers=HEADERS, json=data)
+    if r.status_code == 200:
+        try:
+            json = r.json()
+        except jsonlib.JSONDecodeError:
+            return (False, None, 'Json decode error for ' + r.text)
+
+        if 'error' in json:
+            error_code = json['error']
+            return (False, error_code, json['error_message'] if 'error_message' in json else 'No error message available')
+        else:
+            return (True, json, None)
+    else:
+        print(r.text)
+        return (False, None, f'Status code {r.status_code}')

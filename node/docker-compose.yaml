@@ -7,17 +7,15 @@ services:
     ports: [8000:80]
     volumes: ['/opt/chunkserver1:/data']
     environment:
-      TOKEN: O2LZicTd5mMvtWJenhAinEBqjNkfjgymjS7zXbeoAIDx1vbH2nJaY4VMeI9W1Il6ogLUU0XmqJKrI5Ep9uY0NYLvNU2yboaHGT9v338aG5cx5ikDyNN7mjl7XkDA3Bms
+      TOKEN: IPysRFtPZwtODawmXTSKSHKxxwzBOvKBmIDf5WBdglPBwgq6gLUU5QfHyNQIKpFnt7PSrS0jzyLe4HcHeLQXtWJWKum85PDR5y79pWrPIJVmcR8QE9IJwunP2oxhGNld
       METASERVER_ADDRESS: http://10.0.0.124:7779
       OWN_ADDRESS: 'http://10.0.0.124:8000'
-      LABEL: A
 
   node_b:
     build: .
     ports: [8001:80]
     volumes: ['/opt/chunkserver2:/data']
     environment:
-      TOKEN: PpFPcAx8PF150SBkPdoFbAxoXQSU7zmwkUEnaBENx5KJXtrXqF9jtqKWQqReZindDkk61mz9wTZ3z0XBdA7uU9VbbxlBEE5Vqf8VDItBDJEqykEFp8LEwDBvPD0KdNEu
+      TOKEN: 6mwEEQLUmqThs8W9MnWR9Acrmf9JMnGkdeSHHVX5ieKx7QXsOdJsBr6PoX0hbScDGc4rSTmuksJ8V0gU2KfDIoAzw5g9FueaXLpANYCDknI0tg4AUGKtTtuBm5aSj7R9
       METASERVER_ADDRESS: http://10.0.0.124:7779
       OWN_ADDRESS: 'http://10.0.0.124:8001'
-      LABEL: B

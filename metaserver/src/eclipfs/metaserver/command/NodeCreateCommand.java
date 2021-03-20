@@ -6,8 +6,15 @@ public class NodeCreateCommand extends Command {
 
 	@Override
 	public void run(final String[] args) throws Exception {
-		final Node node = Node.createNode();
-		
+		if (args.length != 2) {
+			System.out.println("Usage: nodecreate <name> <location>");
+			return;
+		}
+
+		final String name = args[0];
+		final String location = args[1];
+		final Node node = Node.createNode(name, location);
+
 		System.out.println("Created new node '" + node.getFullToken() + "'");
 	}
 

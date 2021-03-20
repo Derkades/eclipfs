@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 from requests.exceptions import RequestException
 import requests
+import random
 
 
 app = Flask(__name__)
@@ -89,9 +90,9 @@ def create_chunk(chunk_token, data):
     if not path:
         print('create_chunk fail, path is None')
         return False
-    print('create_chunk: path exists:', os.path.exists(path))
-    print('path', path)
-    print('data length:', len(data))
+    # print('create_chunk: path exists:', os.path.exists(path))
+    # print('path', path)
+    # print('data length:', len(data))
     if len(data) > 1000000:
         print('create_chunk fail, data too large')
         return False
@@ -186,12 +187,96 @@ def announce():
         print('Unable to contact master server:', e)
 
 
+def ls(path, is_file=False):
+    if not os.path.exists(path):
+        return []
+    return [e for e in os.listdir(path) if is_file == os.path.isfile(os.path.join(path, e))]
+
+
+def dir_empty(dir_path):
+    try:
+        next(os.scandir(dir_path))
+        return False
+    except StopIteration:
+        return True
+
+
+def garbage_collect(count=500):
+    base = env['DATA_DIR']
+    subdirs = ls(base)
+    if len(subdirs) < count:
+        print('Skipping garbage collection, this node is not storing that much data.')
+        return
+
+    directories = [os.path.join(base, choice) for choice in random.sample(subdirs, count)]
+    print(f'Starting garbage collection, scanning {count} dirs')
+    # print('Garbage collecting dirs', directories)
+    chunk_tokens = []
+    for directory1 in directories:
+        subdirs = ls(directory1)
+        if len(subdirs) == 0:
+            # print('directory empty, delete')
+            os.rmdir(os.path.join(base, directory1))
+        else:
+            for directory2 in subdirs:
+                subfiles = ls(os.path.join(directory1, directory2), is_file=True)
+                if len(subfiles) == 0:
+                    # print('directory empty, delete')
+                    os.rmdir(os.path.join(directory1, directory2))
+                else:
+                    for file2 in subfiles:
+                        token = os.path.basename(directory1) + directory2 + file2
+                        chunk_tokens.append(token)
+
+    print('Making request to metaserver')
+    # r = requests.get('/node/checkGarbage', headers=dsnapi.HEADERS, data={chunks: chunk_tokens})
+    (success, response, error_message) = dsnapi.get('checkGarbage', data={'chunks': chunk_tokens})
+    if not success:
+        print('garbage collection error', response, error_message)
+        return
+
+    garbage_tokens = response['garbage']
+
+    print('Found garbage', len(garbage_tokens), '/', len(chunk_tokens), '- deleting now...')
+    deleted_files = 0
+    deleted_dirs = 0
+    for garbage_token in garbage_tokens:
+        path = get_chunk_path(garbage_token)
+        if not path:
+            # print('invalid', path)
+            pass
+        elif os.path.exists(path):
+            # print('delete', path)
+            os.remove(path)
+            deleted_files += 1
+            parent = Path(path).parent.absolute()
+            if dir_empty(parent):
+                parent2 = Path(parent).parent.absolute()
+                # print('delete parent')
+                os.rmdir(parent)
+                deleted_dirs += 1
+                if dir_empty(parent2):
+                    # print('delete parent2')
+                    os.rmdir(parent2)
+                    deleted_dirs += 1
+        else:
+            pass
+            # print('skip', path)
+
+    print(f'Done, deleted {deleted_files} files and {deleted_dirs} directories')
+
+
+
 def timers():
     announce()
-    schedule.every(30).to(60).seconds.do(announce)
+    schedule.every(7).to(9).seconds.do(announce)
+    schedule.every(30).to(60).seconds.do(garbage_collect)
     while True:
         schedule.run_pending()
         sleep(1)
+
+
+# garbage_collect()
 
 
 t = threading.Thread(target=timers, args=[])

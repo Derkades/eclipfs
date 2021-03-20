@@ -35,6 +35,9 @@ adapter = TimeoutHTTPAdapter(max_retries=retries)
 http.mount("http://", adapter)
 http.mount("https://", adapter)
 
+def get_requests_session():
+    return http
+
 def get_headers():
     return {
         "X-DSN-Username": base64.b64encode(config.USERNAME.encode()),

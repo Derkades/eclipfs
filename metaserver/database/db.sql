@@ -8,11 +8,9 @@ CREATE TABLE "user" (
 CREATE TABLE "node" (
   "id" serial PRIMARY KEY,
   -- "address" text,
-  "uptime" float NOT NULL DEFAULT 1.0,
-  "priority_download" float NOT NULL DEFAULT 1.0,
-  "priority_upload" float NOT NULL DEFAULT 1.0,
   "token" text NOT NULL,
-  "name" text
+  "location" text NOT NULL,
+  "name" text NOT NULL
   -- "operator" serial,
   -- CONSTRAINT "fk_operator"
   --   FOREIGN KEY("operator")

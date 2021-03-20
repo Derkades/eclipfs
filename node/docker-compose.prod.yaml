@@ -10,7 +10,6 @@ services:
       TOKEN: enter token here
       METASERVER_ADDRESS: enter address here
       OWN_ADDRESS: enter address here
-      LABEL: A
 
   node_b:
     build: derkades/eclipfs-node
@@ -20,4 +19,3 @@ services:
       TOKEN: enter token here
       METASERVER_ADDRESS: enter address here
       OWN_ADDRESS: enter address here
-      LABEL: B

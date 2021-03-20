@@ -5,47 +5,48 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Queue;
 import java.util.Set;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import eclipfs.metaserver.Nodes.FilterStrategy;
 import eclipfs.metaserver.model.Chunk;
+import eclipfs.metaserver.model.Node;
 import eclipfs.metaserver.model.OnlineNode;
 
 public class Replication {
-	
+
 	private static final Logger LOGGER = Logger.getLogger("Replication");
-	
+
 	private static final Set<Long> DUPE_CHECK = new HashSet<>();
-	private static final Queue<Long> CHUNK_CHECK_QUEUE = new LinkedList<>();
-	
+	private static final Deque<Long> CHUNK_CHECK_QUEUE = new ArrayDeque<>();
+
 	private static long lastBusyTime = 0;
 
 	public static void signalBusy() {
 		lastBusyTime = System.currentTimeMillis();
 	}
-	
+
 	public static void addToCheckQueue(final Chunk chunk) {
 		addToCheckQueue(chunk.getId());
 	}
-	
+
 	public static void addToCheckQueue(final long chunkId) {
 		if (!DUPE_CHECK.contains(chunkId)) {
 			DUPE_CHECK.add(chunkId);
 			CHUNK_CHECK_QUEUE.add(chunkId);
 		}
 	}
-	
+
 	private static boolean isBusy() {
 		return System.currentTimeMillis() - lastBusyTime < Tunables.REPLICATION_IDLE_WAIT;
 	}
-	
+
 	static void run() {
 		while(true) {
 			try {
@@ -54,17 +55,17 @@ public class Replication {
 				} else {
 					Thread.sleep(500);
 				}
-				
+
 				if (isBusy()) {
 					continue;
 				}
-				
+
 				if (CHUNK_CHECK_QUEUE.isEmpty()) {
 					continue;
 				}
-				
+
 				LOGGER.info("Processing replication queue, " + CHUNK_CHECK_QUEUE.size() + " entries left.");
-				
+
 				final long chunkId = CHUNK_CHECK_QUEUE.poll();
 				DUPE_CHECK.remove(chunkId);
 				final Optional<Chunk> optChunk = Chunk.byId(chunkId);
@@ -73,8 +74,8 @@ public class Replication {
 					continue;
 				}
 				final Chunk chunk = optChunk.get();
-				final List<OnlineNode> nodes = chunk.getOnlineNodes();
-				final Set<String> existingLabels = nodes.stream().map(OnlineNode::getLabel).distinct().collect(Collectors.toSet());
+				final List<Node> nodes = chunk.getNodes();
+				final Set<String> existingLabels = nodes.stream().map(Node::getLocation).distinct().collect(Collectors.toSet());
 				final int replication = existingLabels.size();
 				final String chunkStr = chunk.getFile().getId() + "." + chunk.getIndex();
 				if (replication > Tunables.REPLICATION_GOAL) {
@@ -84,7 +85,7 @@ public class Replication {
 					LOGGER.info("Chunk " + chunkStr + " is replicated correctly");
 					continue;
 				}
-				
+
 				LOGGER.info("Chunk " + chunkStr + " is undergoal (" + replication + "/" + Tunables.REPLICATION_GOAL + ")");
 				final Optional<OnlineNode> optReplicationTarget = Nodes.selectNode(chunk, TransferType.UPLOAD, FilterStrategy.MUST_NOT, existingLabels);
 				if (optReplicationTarget.isEmpty()) {
@@ -92,7 +93,7 @@ public class Replication {
 					addToCheckQueue(chunkId);
 					continue;
 				}
-				
+
 				final OnlineNode replicationTarget = optReplicationTarget.get();
 				final Optional<OnlineNode> optReplicationSource = Nodes.selectNode(chunk, TransferType.DOWNLOAD);
 				if (optReplicationSource.isEmpty()) {
@@ -100,7 +101,7 @@ public class Replication {
 					addToCheckQueue(chunkId);
 					continue;
 				}
-				
+
 				final OnlineNode replicationSource = optReplicationSource.get();
 				try {
 					if (replicationSource.requestReplicate(chunk, replicationTarget)) {
@@ -121,16 +122,17 @@ public class Replication {
 			}
 		}
 	}
-	
+
 	static void timer() {
 		try {
 //			addRandomChunksToQueue(20);
-			addChunksSmart();
+			addChunksSmart(1000);
 		} catch (final SQLException e) {
 			e.printStackTrace();
 		}
 	}
-	
+
+	@Deprecated
 	public static void addRandomChunksToQueue(final int amount) throws SQLException {
 		if (CHUNK_CHECK_QUEUE.size() > amount) {
 			LOGGER.info("Chunk queue is already quite full, not adding random chunks");
@@ -145,7 +147,8 @@ public class Replication {
 			}
 		}
 	}
-	
+
+	@Deprecated
 	public static void addAllChunksToQueue() throws SQLException {
 		try (Connection conn = Database.getConnection();
 				PreparedStatement query = conn.prepareStatement("SELECT id FROM chunk")){
@@ -156,14 +159,15 @@ public class Replication {
 			}
 		}
 	}
-	
-	public static void addChunksSmart() throws SQLException {
+
+	public static void addChunksSmart(final int limit) throws SQLException {
 		try (Connection conn = Database.getConnection();
-				PreparedStatement query = conn.prepareStatement("SELECT id FROM chunk JOIN chunk_node ON id=chunk GROUP BY chunk.id HAVING COUNT(node) < ?")) {
+				PreparedStatement query = conn.prepareStatement("SELECT id FROM chunk JOIN chunk_node ON id=chunk GROUP BY chunk.id HAVING COUNT(node) < ? LIMIT ?")) {
 			query.setInt(1, Tunables.REPLICATION_GOAL);
+			query.setInt(2, limit);
 			final ResultSet result = query.executeQuery();
 			while (result.next()) {
-				System.out.println(result.getLong(1));
+//				System.out.println(result.getLong(1));
 				addToCheckQueue(result.getLong(1));
 			}
 		}
