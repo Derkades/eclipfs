@@ -33,7 +33,6 @@ import eclipfs.metaserver.command.ListCommand;
 import eclipfs.metaserver.command.NodeCreateCommand;
 import eclipfs.metaserver.command.NodeListCommand;
 import eclipfs.metaserver.command.NodeRemoveCommand;
-import eclipfs.metaserver.command.ReplicateCommand;
 import eclipfs.metaserver.command.ToggleWriteAccessCommand;
 import eclipfs.metaserver.command.UpCommand;
 import eclipfs.metaserver.command.UserAddCommand;
@@ -52,19 +51,19 @@ import eclipfs.metaserver.servlet.node.CheckGarbage;
 import eclipfs.metaserver.servlet.node.NotifyChunkUploaded;
 
 public class MetaServer {
-	
+
 	public static Directory WORKING_DIRECTORY;
-	
+
 	public static final Logger LOGGER = Logger.getGlobal();
-	
+
 	public static final PasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder();
-	
+
 	private static final Map<String, Command> COMMANDS = new HashMap<>();
-	
+
 	private static final ExecutorService THREAD_POOL = Executors.newCachedThreadPool();
-	
+
 	public static final boolean DEBUG = true;
-	
+
 	static {
 		COMMANDS.put("cd", new ChangeDirectoryCommand());
 		COMMANDS.put("del", new DeleteCommand());
@@ -73,13 +72,12 @@ public class MetaServer {
 		COMMANDS.put("nodelist", new NodeListCommand());
 		COMMANDS.put("nodecreate", new NodeCreateCommand());
 		COMMANDS.put("noderemove", new NodeRemoveCommand());
-		COMMANDS.put("replicate", new ReplicateCommand());
 		COMMANDS.put("togglewriteaccess", new ToggleWriteAccessCommand());
 		COMMANDS.put("up", new UpCommand());
 		COMMANDS.put("useradd", new UserAddCommand());
 		COMMANDS.put("userlist", new UserListCommand());
 	}
-	
+
 	public static void main(final String[] args) throws Exception {
 		if (!DEBUG) {
 			LOGGER.setLevel(Level.WARNING);
@@ -88,12 +86,12 @@ public class MetaServer {
 		WORKING_DIRECTORY = Inode.getRootInode();
 
 		startWebServer();
-		
+
 		final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 		executor.scheduleAtFixedRate(Replication::timer, 1, 30, TimeUnit.SECONDS);
 
 		THREAD_POOL.execute(Replication::run);
-		
+
 		final LineReader reader = LineReaderBuilder.builder().build();
 		while (true) {
 			try {
@@ -105,11 +103,11 @@ public class MetaServer {
 			}
 		}
 	}
-	
+
 	private static String getPrompt() throws SQLException {
 		return "dsn " + WORKING_DIRECTORY.getAbsolutePath() + " > ";
 	}
-	
+
 	public static void runCommand(final String line) {
 		Validate.notNull(line);
 		final String[] split = line.split(" ");
@@ -133,7 +131,7 @@ public class MetaServer {
 			}
 		}
 	}
-	
+
 	private static void startWebServer() throws Exception {
 		final int port = 7779;
 		final String host = "0.0.0.0";
@@ -146,7 +144,7 @@ public class MetaServer {
 		handler.addServlet(InodeDelete.class, "/client/inodeDelete");
 		handler.addServlet(InodeInfo.class, "/client/inodeInfo");
 		handler.addServlet(InodeMove.class, "/client/inodeMove");
-		
+
 		handler.addServlet(Announce.class, "/node/announce");
 		handler.addServlet(CheckGarbage.class, "/node/checkGarbage");
 		handler.addServlet(NotifyChunkUploaded.class, "/node/notifyChunkUploaded");

@@ -14,16 +14,16 @@ import org.apache.commons.lang.Validate;
 import eclipfs.metaserver.Database;
 
 public class File extends Inode {
-	
+
 	protected File(final ResultSet result) throws SQLException {
 		super(result);
 	}
-	
+
 	@Override
 	public boolean isFile() {
 		return true;
 	}
-	
+
 	@Override
 	public long getSize() throws SQLException {
 		try (Connection conn = Database.getConnection();
@@ -39,7 +39,7 @@ public class File extends Inode {
 			}
 		}
 	}
-	
+
 	@Override
 	public void delete() throws SQLException {
 		try (Connection conn = Database.getConnection();
@@ -48,47 +48,11 @@ public class File extends Inode {
 			query.execute();
 		}
 	}
-	
-//	public boolean isDeleted() {
-//		return this.deleteTimestamp != null;
-//	}
-//
-//	public long getDeletedtimestamp() {
-//		return this.deleteTimestamp;
-//	}
-	
-//	public Chunk recreateChunk(final int index, final byte[] checksum) throws SQLException {
-//		// some copy on write maybe even?
-//		// - add chunk to second table
-//		// - on upload complete, replace chunk in main table
-//		synchronized(Chunk.class) {
-//			Validate.isTrue(getChunk(index).isPresent(), "Cannot use recreateChunk if no chunk already exists, use createChunk instead.");
-//			try (Connection connection = Database.getConnection()) {
-//
-//				// Delete any existing replacements
-//				try (PreparedStatement query = connection.prepareStatement("DELETE FROM chunk_replacement WHERE file=? AND index=?")) {
-//					query.setLong(1, this.getId());
-//					query.setInt(2, index);
-//				}
-//
-//				// Insert new replacement
-//				try (PreparedStatement query = connection.prepareStatement("INSERT INTO chunk_replacement (index, file, checksum, token) VALUES (?,?,?,?) RETURNING *")) {
-//					query.setInt(1, index);
-//					query.setLong(2, this.id);
-//					query.setBytes(3, checksum);
-//					query.setString(4, RandomStringUtils.randomAlphanumeric(128));
-//					final ResultSet result = query.executeQuery();
-//					result.next();
-//					return new Chunk(this, result);
-//				}
-//			}
-//		}
-//	}
-	
+
 	public Chunk createChunk(final int index, final byte[] checksum, final long size) throws SQLException {
 		Validate.isTrue(index >= 0, "Chunk index must be positive");
 		Validate.notNull(checksum);
-		
+
 		// Do not create multiple chunks at the same time
 		synchronized(Chunk.class) {
 			Validate.isTrue(getChunk(index).isEmpty(), "Chunk already exists");
@@ -105,10 +69,10 @@ public class File extends Inode {
 			}
 		}
 	}
-	
+
 	public Optional<Chunk> getChunk(final int index) throws SQLException {
 		Validate.isTrue(index >= 0, "Chunk index must be positive");
-		
+
 		try (Connection conn = Database.getConnection();
 				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"chunk\" WHERE file=? AND index=?")) {
 			query.setLong(1, this.getId());
@@ -121,7 +85,7 @@ public class File extends Inode {
 			}
 		}
 	}
-	
+
 	public int getMaxChunkIndex() throws SQLException {
 		try (Connection conn = Database.getConnection();
 				PreparedStatement query = conn.prepareStatement("SELECT MAX(index) FROM \"chunk\" WHERE file=?")) {
@@ -144,62 +108,5 @@ public class File extends Inode {
 			return ids;
 		}
 	}
-	
-//	public static Optional<File> byId(final long fileId) throws SQLException {
-//		Validate.isTrue(fileId >= 0);
-//		try (PreparedStatement query = Database.prepareStatement("SELECT * FROM \"file\" WHERE id=?")) {
-//			query.setLong(1, fileId);
-//			return fileOptFromResult(query.executeQuery());
-//		}
-//	}
-//
-//	public static Optional<File> byInode(final long fileId) throws SQLException {
-//		Validate.isTrue(fileId >= 0);
-//		try (PreparedStatement query = Database.prepareStatement("SELECT * FROM \"file\" WHERE inode=?")) {
-//			query.setLong(1, fileId);
-//			return fileOptFromResult(query.executeQuery());
-//		}
-//	}
-	
-//	static Optional<File> get(final long directoryId, final String name) throws SQLException {
-//		Validate.isTrue(directoryId >= 0);
-//		Validate.notEmpty(name);
-//		try (PreparedStatement query = Database.prepareStatement("SELECT * FROM \"file\" WHERE directory=? AND name=?")) {
-//			query.setLong(1, directoryId);
-//			query.setString(2, name);
-//			return fileOptFromResult(query.executeQuery());
-//		}
-//	}
-	
-//	/**
-//	 *
-//	 * @param directoryId
-//	 * @return List of all files in a directory
-//	 * @throws SQLException
-//	 */
-//	static List<File> list(final long directoryId, final boolean deleted) throws SQLException {
-//		final String queryString = "SELECT * FROM \"file\" WHERE directory=? AND delete_time IS "
-//				+ (deleted ? "NOT NULL" : "NULL");
-//		try (PreparedStatement query = Database.prepareStatement(queryString)) {
-//			query.setLong(1, directoryId);
-//			final ResultSet result = query.executeQuery();
-//			final List<File> files = new ArrayList<>();
-//			while (result.next()) {
-//				files.add(new File(result));
-//			}
-//			return files;
-//		}
-//	}
-	
-//	static File create(final long directoryId, final String name) throws SQLException {
-//		Validation.validateFileDirectoryName(name);
-//		try (PreparedStatement query = Database.prepareStatement("INSERT INTO \"file\" (name,directory) VALUES (?,?) RETURNING *")) {
-//			query.setString(1, name);
-//			query.setLong(2, directoryId);
-//			final ResultSet result = query.executeQuery();
-//			result.next();
-//			return new File(result);
-//		}
-//	}
 
 }

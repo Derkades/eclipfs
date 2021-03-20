@@ -91,34 +91,6 @@ public class Node {
 		return Collections.unmodifiableList(nodes);
 	}
 
-//	public static Node getNodeForUpload() throws NodeShortageException {
-//		synchronized(NODE_LOCK) {
-//			if (FREE_SPACE_NODES.isEmpty()) {
-//				throw new NodeShortageException();
-//			}
-//
-//			if (lastUsedUploadIndex >= FREE_SPACE_NODES.size()) {
-//				lastUsedUploadIndex = 0;
-//			}
-//
-//			return FREE_SPACE_NODES.get(0);
-//		}
-//	}
-//
-//	public static Node getNodeForDownload() throws NodeShortageException {
-//		synchronized(NODE_LOCK) {
-//			if (ONLINE_NODES.isEmpty()) {
-//				throw new NodeShortageException();
-//			}
-//
-//			if (lastUsedDownloadIndex >= ONLINE_NODES.size()) {
-//				lastUsedDownloadIndex = 0;
-//			}
-//
-//			return ONLINE_NODES.get(0);
-//		}
-//	}
-
 	public static Node createNode(final String name, final String location) throws SQLException {
 		final String token = RandomStringUtils.randomAlphanumeric(128);
 

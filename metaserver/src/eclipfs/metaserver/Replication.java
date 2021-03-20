@@ -50,11 +50,7 @@ public class Replication {
 	static void run() {
 		while(true) {
 			try {
-				if (CHUNK_CHECK_QUEUE.size() > 100) {
-					Thread.sleep(100);
-				} else {
-					Thread.sleep(500);
-				}
+				Thread.sleep(CHUNK_CHECK_QUEUE.size() > 100 ? 100 : 500);
 
 				if (isBusy()) {
 					continue;
