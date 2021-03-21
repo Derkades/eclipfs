@@ -1,7 +1,7 @@
 CREATE TABLE "user" (
   "id" serial PRIMARY KEY,
   "username" text NOT NULL UNIQUE,
-  "password" text,
+  "password" text NOT NULL,
   "write_access" boolean DEFAULT 'False' NOT NULL
 );
 

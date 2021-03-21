@@ -43,10 +43,7 @@ public class User {
 
 	public boolean verifyPassword(final String password) {
 		Validate.notNull(password);
-
-		if (this.passwordHash == null) {
-			return true;
-		}
+		Validate.notNull(this.passwordHash);
 
         return MetaServer.PASSWORD_ENCODER.matches(password, this.passwordHash);
 	}
@@ -86,16 +83,20 @@ public class User {
 		}
 	}
 
-	public static User create(final String username) throws AlreadyExistsException, SQLException {
-		Validate.notNull(username);
+	public static User create(final String username, final String password) throws AlreadyExistsException, SQLException {
+		Validate.notNull(username, "Username is null");
+		Validate.notEmpty(password, "Password is null or empty");
 
 		if (get(username).isPresent()) {
 			throw new AlreadyExistsException("User already exists");
 		}
 
+		final String hash = MetaServer.PASSWORD_ENCODER.encode(password);
+
 		try (Connection connection = Database.getConnection()) {
-			try (PreparedStatement query = connection.prepareStatement("INSERT INTO \"user\" (username) VALUES (?) RETURNING *")) {
+			try (PreparedStatement query = connection.prepareStatement("INSERT INTO \"user\" (username, password) VALUES (?,?) RETURNING *")) {
 				query.setString(1, username);
+				query.setString(2, hash);
 				final ResultSet result = query.executeQuery();
 				result.next();
 				return new User(result);
