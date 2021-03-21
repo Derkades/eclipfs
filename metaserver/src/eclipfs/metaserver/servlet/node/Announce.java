@@ -36,13 +36,13 @@ public class Announce extends HttpServlet {
 			}
 
 			final String token = optNode.get().getFullToken();
+
 			final String version = HttpUtil.getJsonString(json, response, "version");
-			final Long freeSpace = HttpUtil.getJsonLong(json, response, "free");
 			final URL address = HttpUtil.getJsonAddress(json, response, "address");
+			final Long freeSpace = HttpUtil.getJsonLong(json, response, "free");
 			final Long storageQuota = HttpUtil.getJsonLong(json, response, "quota");
 
-			if (token == null ||
-					version == null ||
+			if (version == null ||
 					freeSpace == null ||
 					address == null ||
 					storageQuota == null) {
@@ -50,7 +50,7 @@ public class Announce extends HttpServlet {
 			}
 
 			try {
-				OnlineNode.processNodeAnnounce(token, version, freeSpace, address, storageQuota);
+				OnlineNode.processNodeAnnounce(token, address, version, freeSpace, storageQuota);
 			} catch (final NodeNotFoundException e) {
 				throw new IllegalStateException("This is impossible, authentication check should have failed before if no node exists with this token", e);
 			}
@@ -77,10 +77,7 @@ public class Announce extends HttpServlet {
 				return;
 			}
 
-			final JsonObject jsonResponse = new JsonObject();
-			jsonResponse.addProperty("success", true);
-			response.setContentType("application/json");
-			response.getWriter().write(jsonResponse.toString());
+			HttpUtil.writeSuccessTrueJson(response);
 		} catch (final SQLException e) {
 			HttpUtil.handleSqlException(response, e);
 		}

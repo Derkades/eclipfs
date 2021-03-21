@@ -1,21 +1,29 @@
 import requests
 import json as jsonlib
-from os import environ
+from os import environ as env
+import shutil
 
 HEADERS = {
-    "X-DSN-NodeToken": environ['TOKEN']
+    "X-DSN-NodeToken": env['TOKEN']
 }
 
 def announce():
+    _, _, free = shutil.disk_usage(env['DATA_DIR'])
+
+    print('Free space:', free)
+    reservation = int(env['RESERVATION']) * 1_000_000_000 if 'RESERVATION' in env else 0
+    print('Reservation:', reservation)
+    new_free = abs(free - reservation)
+    print(f'Free space, accounting for reservation: {new_free} ({new_free/1_000_000_000} GB)')
+
     data = {
         'version': 'dev',
-        'free': 0,
-        'address': environ['OWN_ADDRESS'],
-        'quota': 100,
-        'name': 'test',
+        'address': env['OWN_ADDRESS'],
+        'free': new_free,
+        'quota': 0 # not used right now
     }
 
-    r = requests.post(environ['METASERVER_ADDRESS'] + '/node/announce', headers=HEADERS, json=data)
+    r = requests.post(env['METASERVER_ADDRESS'] + '/node/announce', headers=HEADERS, json=data)
     if r.status_code == 200:
         try:
             json = r.json()
@@ -38,7 +46,7 @@ def notify_chunk_uploaded(chunk_token, chunk_size):
         'chunk_token': chunk_token,
         'chunk_size': chunk_size,
     }
-    r = requests.post(environ['METASERVER_ADDRESS'] + '/node/notifyChunkUploaded', headers=HEADERS, json=data)
+    r = requests.post(env['METASERVER_ADDRESS'] + '/node/notifyChunkUploaded', headers=HEADERS, json=data)
     if r.status_code == 200:
         try:
             json = r.json()
@@ -55,7 +63,7 @@ def notify_chunk_uploaded(chunk_token, chunk_size):
 
 
 def get(method, data):
-    r = requests.post(environ['METASERVER_ADDRESS'] + '/node/' + method, headers=HEADERS, json=data)
+    r = requests.post(env['METASERVER_ADDRESS'] + '/node/' + method, headers=HEADERS, json=data)
     if r.status_code == 200:
         try:
             json = r.json()

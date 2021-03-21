@@ -30,44 +30,43 @@ public class OnlineNode extends Node {
 	private static final Map<Long, OnlineNode> BY_ID = new HashMap<>();
 	private static final Map<String, OnlineNode> BY_TOKEN = new HashMap<>();
 
-	private long freeSpace = -1;
 	private long lastAnnounce = -1;
-	private final String version = null;
-	private URL address;
+	private String version = null;
+	private URL address = null;
+	private long storageQuota = -1;
+	private long freeSpace = -1;
 
 	public OnlineNode(final Node node) {
 		super(node.id, node.token, node.location, node.name);
 	}
 
-	public long getFreeSpace() {
-		if (this.freeSpace == -1) {
-			throw new IllegalStateException();
-		}
-		return this.freeSpace;
-	}
-
 	public long getLastAnnounce() {
-		if (this.lastAnnounce == -1) {
-			throw new IllegalStateException();
-		}
+		Validate.isTrue(this.lastAnnounce >= 0);
 		return this.lastAnnounce;
 	}
 
-	public String getVersion() {
-		if (this.version == null) {
-			throw new IllegalStateException();
-		}
-		return this.version;
-	}
-
-	private void updateAddress(final URL url) throws SQLException {
-		Validate.notNull(url);
-		this.address = url;
+	private boolean isOnline() {
+		return this.getLastAnnounce() + Tunables.NODE_OFFLINE_TIMEOUT > System.currentTimeMillis();
 	}
 
 	public URL getAddress() {
 		Validate.notNull(this.address);
 		return this.address;
+	}
+
+	public String getVersion() {
+		Validate.notNull(this.version);
+		return this.version;
+	}
+
+	public long getFreeSpace() {
+		Validate.isTrue(this.freeSpace >= 0);
+		return this.freeSpace;
+	}
+
+	public long getStorageQuota() {
+		Validate.isTrue(this.storageQuota >= 0);
+		return this.storageQuota;
 	}
 
 	public boolean requestReplicate(final Chunk chunk, final OnlineNode target) throws IOException {
@@ -84,20 +83,22 @@ public class OnlineNode extends Node {
 		}
 	}
 
-	public static void processNodeAnnounce(final String token, final String version,
-			final long freeSpace, final URL address, final long storageQuota) throws SQLException, NodeNotFoundException {
+	public static void processNodeAnnounce(final String token, final URL address,
+			final String version, final long freeSpace, final long storageQuota) throws SQLException, NodeNotFoundException {
 		Validate.notNull(token);
 		Validate.notNull(version);
-		Validate.inclusiveBetween(0, Long.MAX_VALUE, freeSpace);
 		Validate.notNull(address);
+		Validate.inclusiveBetween(0, Long.MAX_VALUE, freeSpace);
 		Validate.inclusiveBetween(0, Long.MAX_VALUE, storageQuota);
 		synchronized(NODE_LOCK) {
 			if (BY_TOKEN.containsKey(token)) {
 				// Node exists
 				final OnlineNode node = BY_TOKEN.get(token);
 				node.lastAnnounce = System.currentTimeMillis();
+				node.address = address;
+				node.version = version;
 				node.freeSpace = freeSpace;
-				node.updateAddress(address);
+				node.storageQuota = storageQuota;
 			} else {
 				// New node
 				final Optional<Node> optNode = Node.byToken(token);
@@ -108,8 +109,11 @@ public class OnlineNode extends Node {
 
 				final OnlineNode node = new OnlineNode(optNode.get());
 				node.lastAnnounce = System.currentTimeMillis();
+				node.address = address;
+				node.version = version;
 				node.freeSpace = freeSpace;
-				node.updateAddress(address);
+				node.storageQuota = storageQuota;
+
 				ONLINE_NODES.add(node);
 				BY_ID.put(node.getId(), node);
 				BY_TOKEN.put(token, node);
@@ -124,11 +128,11 @@ public class OnlineNode extends Node {
 		BY_TOKEN.remove(node.getFullToken());
 	}
 
-	public static void pruneNodes() {
+	private static void pruneNodes() {
 		synchronized(NODE_LOCK) {
 			final Deque<OnlineNode> toRemove = new ArrayDeque<>();
 			for (final OnlineNode node : ONLINE_NODES) {
-				if (node.lastAnnounce + Tunables.NODE_OFFLINE_TIMEOUT < System.currentTimeMillis()) {
+				if (!node.isOnline()) {
 					toRemove.add(node);
 				}
 			}
@@ -151,8 +155,7 @@ public class OnlineNode extends Node {
 		synchronized(NODE_LOCK) {
 			OnlineNode node = BY_ID.get(id);
 
-			if (node != null &&
-					node.getLastAnnounce() + Tunables.NODE_OFFLINE_TIMEOUT < System.currentTimeMillis()) {
+			if (node != null && !node.isOnline()) {
 				removeNode(node);
 				node = null;
 			}

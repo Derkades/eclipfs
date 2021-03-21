@@ -10,6 +10,7 @@ services:
       TOKEN: IPysRFtPZwtODawmXTSKSHKxxwzBOvKBmIDf5WBdglPBwgq6gLUU5QfHyNQIKpFnt7PSrS0jzyLe4HcHeLQXtWJWKum85PDR5y79pWrPIJVmcR8QE9IJwunP2oxhGNld
       METASERVER_ADDRESS: http://10.0.0.124:7779
       OWN_ADDRESS: 'http://10.0.0.124:8000'
+      RESERVATION: 50
 
   node_b:
     build: .

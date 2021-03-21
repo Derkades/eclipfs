@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import dnl.utils.text.table.TextTable;
+import eclipfs.metaserver.Util;
 import eclipfs.metaserver.model.Node;
 import eclipfs.metaserver.model.OnlineNode;
 
@@ -22,7 +23,7 @@ public class NodeListCommand extends Command {
 				System.out.println("No online nodes");
 			} else {
 				System.out.println("Online nodes:");
-				final String[] columns = {"id", "location", "name", "address", "token"};
+				final String[] columns = {"id", "location", "name", "address", "free space", "token"};
 				final Object[][] data = new Object[onlineNodes.size()][columns.length];
 
 				for (int i = 0; i < onlineNodes.size(); i++) {
@@ -31,7 +32,8 @@ public class NodeListCommand extends Command {
 					data[i][1] = node.getLocation();
 					data[i][2] = node.getName();
 					data[i][3] = node.getAddress();
-					data[i][4] = node.getFullToken();
+					data[i][4] = Util.formatByteCount(node.getFreeSpace());
+					data[i][5] = node.getFullToken();
 				}
 
 				new TextTable(columns, data).printTable();

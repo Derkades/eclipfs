@@ -9,6 +9,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang.Validate;
@@ -19,14 +20,14 @@ import eclipfs.metaserver.model.OnlineNode;
 
 public class Nodes {
 
-	// TODO intelligent algorithm etc
-
 	public static Optional<OnlineNode> selectNode(final Chunk chunk, final TransferType type) throws SQLException {
 		final List<OnlineNode> nodes = getAllNodes(chunk, type);
+
 		if (nodes.isEmpty()) {
 			return Optional.empty();
 		} else {
-			return Optional.of(nodes.get(0));
+			final int i = ThreadLocalRandom.current().nextInt(0, nodes.size());
+			return Optional.of(nodes.get(i));
 		}
 	}
 
@@ -48,7 +49,7 @@ public class Nodes {
 		if (type == TransferType.DOWNLOAD) {
 			return chunk.getOnlineNodes();
 		} else {
-			return OnlineNode.getOnlineNodes();
+			return OnlineNode.getOnlineNodes().stream().filter(n -> n.getFreeSpace() > Tunables.MINIMUM_FREE_SPACE_FOR_UPLOAD).collect(Collectors.toList());
 		}
 	}
 
@@ -57,12 +58,14 @@ public class Nodes {
 		Validate.notNull(allNodes);
 		Validate.notNull(candidates);
 		if (!candidates.isEmpty()) {
-			return Optional.of(candidates.get(0));
+			final int i = ThreadLocalRandom.current().nextInt(0, candidates.size());
+			return Optional.of(candidates.get(i));
 		} else {
 			if (strategy == SHOULD || strategy == SHOULD_NOT) {
 				// it's okay if we use other nodes
 				if (!allNodes.isEmpty()) {
-					return Optional.of(allNodes.get(0));
+					final int i = ThreadLocalRandom.current().nextInt(0, allNodes.size());
+					return Optional.of(allNodes.get(i));
 				} else {
 					return Optional.empty();
 				}

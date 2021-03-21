@@ -9,6 +9,7 @@ import java.util.Optional;
 import org.apache.commons.lang.Validate;
 
 import eclipfs.metaserver.Database;
+import eclipfs.metaserver.Util;
 import eclipfs.metaserver.Validation;
 import eclipfs.metaserver.exception.AlreadyExistsException;
 import eclipfs.metaserver.exception.NotADirectoryException;
@@ -67,31 +68,8 @@ public abstract class Inode {
 		return this.mtime;
 	}
 
-	private static final String[] SIZE_SUFFIX = {
-			"B",
-			"KB",
-			"MB",
-			"GB",
-			"TB"
-	};
-
-	private static final double[] SIZE_DIV = {
-			1,
-			1e3,
-			1e6,
-			1e9,
-			1e12,
-			1e15,
-	};
-
 	public String getFormattedSize() throws SQLException {
-		final long size = this.getSize();
-		for (int i = 0; i < SIZE_SUFFIX.length; i++) {
-			if (size < SIZE_DIV[i+1]) {
-				return String.format("%.2f%s", size / SIZE_DIV[i], SIZE_SUFFIX[i]);
-			}
-		}
-		throw new IllegalStateException("File is 1PB or larger??");
+		return Util.formatByteCount(this.getSize());
 	}
 
 	public synchronized final void setMtime(final long mtime) throws SQLException {
