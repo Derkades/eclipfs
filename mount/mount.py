@@ -130,7 +130,18 @@ class Operations(pyfuse3.Operations):
 
                 print('making chunkTransfer request', inode, chunk_index, checksum, size, inode)
 
-                (success, response) = api.post('chunkTransfer', data={'file': inode, 'chunk': chunk_index, 'type': 'upload', 'checksum': checksum, 'size': size})
+                request_data = {
+                    'file': inode,
+                    'chunk': chunk_index,
+                    'type': 'upload',
+                    'checksum': checksum,
+                    'size': size
+                }
+
+                if config.PREFERRED_LOCATION:
+                    request_data['location'] = config.PREFERRED_LOCATION
+
+                (success, response) = api.post('chunkTransfer', data=request_data)
 
                 if not success:
                     print('FAILED TO REQUEST CHUNK TRANSFER', inode, chunk_index)
@@ -502,9 +513,15 @@ class Operations(pyfuse3.Operations):
 
     def _download_chunk(self, inode, chunk_index):
         print('_download_chunk', inode, chunk_index)
-        # file_name = self._get_name(inode)
-        # dir_path = self._get_full_path(self._get_parent(inode))
-        (success, response) = api.post('chunkTransfer', data={'file': inode, 'chunk': chunk_index, 'type': 'download'})
+        data = {
+            'file': inode,
+            'chunk': chunk_index,
+            'type': 'download'
+        }
+        if config.PREFERRED_LOCATION:
+            data['location'] = config.PREFERRED_LOCATION
+
+        (success, response) = api.post('chunkTransfer', data=data)
         if not success:
             return 'apierror', response
         download_url = response['url']

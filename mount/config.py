@@ -2,6 +2,8 @@ METASERVER = "http://localhost:7779"
 USERNAME = "robin"
 PASSWORD = "aaaa"
 
+PREFERRED_LOCATION = "robin2"
+
 MOUNT_UID = 1000
 MOUNT_GID = 1000
 MODE_DIR = 0o777

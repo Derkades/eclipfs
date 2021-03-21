@@ -10,6 +10,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonWriter;
 
 import eclipfs.metaserver.Nodes;
+import eclipfs.metaserver.Nodes.FilterStrategy;
 import eclipfs.metaserver.Replication;
 import eclipfs.metaserver.TransferType;
 import eclipfs.metaserver.Validation;
@@ -34,22 +35,22 @@ public class ChunkTransfer extends HttpServlet {
 			if (optUser.isEmpty()) {
 				return;
 			}
-			
+
 			final JsonObject json = HttpUtil.readJsonFromRequestBody(request, response);
 			if (json == null) {
 				return;
 			}
-			
+
 			final File file = HttpUtil.getJsonFile(json, response);
 			final Long chunkIndex = HttpUtil.getJsonLong(json, response, "chunk");
 			final String transferTypeString = HttpUtil.getJsonString(json, response, "type");
-			
+
 			if (file == null || chunkIndex == null || transferTypeString == null) {
 				return;
 			}
-			
+
 			final User user = optUser.get();
-			
+
 			TransferType transferType;
 			try {
 				transferType = TransferType.valueOf(transferTypeString.toUpperCase());
@@ -57,15 +58,15 @@ public class ChunkTransfer extends HttpServlet {
 				HttpUtil.sendBadRequest(response, "transfer type must be 'upload', 'download'");
 				return;
 			}
-			
+
 			if (transferType == TransferType.UPLOAD && !user.hasWriteAccess()) {
 				ApiError.MISSING_WRITE_ACCESS.send(response);
 				return;
 			}
-			
+
 			Chunk chunk;
 			final Optional<Chunk> optChunk = file.getChunk(chunkIndex.intValue());
-			
+
 			if (transferType == TransferType.UPLOAD) {
 				if (optChunk.isPresent()) {
 					chunk = optChunk.get();
@@ -96,23 +97,28 @@ public class ChunkTransfer extends HttpServlet {
 			} else {
 				throw new IllegalStateException(transferType.name());
 			}
-			
-			final Optional<OnlineNode> optNode = Nodes.selectNode(chunk, transferType);
+
+			final Optional<OnlineNode> optNode;
+			if (json.has("location")) {
+				optNode = Nodes.selectNode(chunk, transferType, FilterStrategy.SHOULD, json.get("location").getAsString());
+			} else {
+				optNode = Nodes.selectNode(chunk, transferType);
+			}
 
 			if (optNode.isEmpty()) {
 				ApiError.FILE_DOWNLOAD_NODES_UNAVAILABLE.send(response);
 				return;
 			}
-			
+
 			final OnlineNode node = optNode.get();
-			
+
 			final String nodeToken = node.getToken(transferType);
-			
+
 			final String address = node.getAddress() +
 					"/" + transferTypeString +
 					"?node_token=" + nodeToken +
 					"&chunk_token=" + chunk.getToken();
-			
+
 			// Sanity check on generated address
 			Validation.validateUrl(address);
 
@@ -124,7 +130,7 @@ public class ChunkTransfer extends HttpServlet {
 				}
 				writer.endObject();
 			}
-			
+
 			Replication.signalBusy();
 		} catch (final SQLException e) {
 			HttpUtil.handleSqlException(response, e);

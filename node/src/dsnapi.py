@@ -10,11 +10,9 @@ HEADERS = {
 def announce():
     _, _, free = shutil.disk_usage(env['DATA_DIR'])
 
-    print('Free space:', free)
     reservation = int(env['RESERVATION']) * 1_000_000_000 if 'RESERVATION' in env else 0
-    print('Reservation:', reservation)
     new_free = abs(free - reservation)
-    print(f'Free space, accounting for reservation: {new_free} ({new_free/1_000_000_000} GB)')
+    print(f'Free space: {free/1_000_000_000} GB - {int(reservation/1_000_000_000)} GB = {new_free/1_000_000_000} GB')
 
     data = {
         'version': 'dev',
