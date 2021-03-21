@@ -53,33 +53,30 @@ public class User {
 	}
 
 	public void setWriteAccess(final boolean hasWriteAccess) throws SQLException {
-		try (Connection connection = Database.getConnection()) {
-			try (PreparedStatement query = connection.prepareStatement("UPDATE \"user\" SET write_access=? WHERE id=?")) {
-				query.setBoolean(1, hasWriteAccess);
-				query.setLong(2, this.getId());
-				query.execute();
-				this.writeAccess = hasWriteAccess;
-			}
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("UPDATE \"user\" SET write_access=? WHERE id=?")) {
+			query.setBoolean(1, hasWriteAccess);
+			query.setLong(2, this.getId());
+			query.execute();
+			this.writeAccess = hasWriteAccess;
 		}
 	}
 
 	public static Optional<User> get(final long id) throws SQLException {
-		try (Connection connection = Database.getConnection()) {
-			try (PreparedStatement query = connection.prepareStatement("SELECT * FROM \"user\" WHERE id=?")) {
-				query.setLong(1, id);
-				return resultToOptionalUser(query.executeQuery());
-			}
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"user\" WHERE id=?")) {
+			query.setLong(1, id);
+			return resultToOptionalUser(query.executeQuery());
 		}
 	}
 
 	public static Optional<User> get(final String username) throws SQLException {
 		Validation.validateUsername(username);
 
-		try (Connection connection = Database.getConnection()) {
-			try (PreparedStatement query = connection.prepareStatement("SELECT * FROM \"user\" WHERE username=?")) {
-				query.setString(1, username);
-				return resultToOptionalUser(query.executeQuery());
-			}
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"user\" WHERE username=?")) {
+			query.setString(1, username);
+			return resultToOptionalUser(query.executeQuery());
 		}
 	}
 
@@ -93,28 +90,26 @@ public class User {
 
 		final String hash = MetaServer.PASSWORD_ENCODER.encode(password);
 
-		try (Connection connection = Database.getConnection()) {
-			try (PreparedStatement query = connection.prepareStatement("INSERT INTO \"user\" (username, password) VALUES (?,?) RETURNING *")) {
-				query.setString(1, username);
-				query.setString(2, hash);
-				final ResultSet result = query.executeQuery();
-				result.next();
-				return new User(result);
-			}
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("INSERT INTO \"user\" (username, password) VALUES (?,?) RETURNING *")) {
+			query.setString(1, username);
+			query.setString(2, hash);
+			final ResultSet result = query.executeQuery();
+			result.next();
+			return new User(result);
 		}
 	}
 
 	public static List<User> list() throws SQLException {
-		final List<User> users = new ArrayList<>();
-		try (Connection connection = Database.getConnection()) {
-			try (PreparedStatement query = connection.prepareStatement("SELECT * FROM \"user\"")) {
-				final ResultSet result = query.executeQuery();
-				while (result.next()) {
-					users.add(new User(result));
-				}
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"user\"")) {
+			final ResultSet result = query.executeQuery();
+			final List<User> users = new ArrayList<>();
+			while (result.next()) {
+				users.add(new User(result));
 			}
+			return users;
 		}
-		return users;
 	}
 
 	private static Optional<User> resultToOptionalUser(final ResultSet result) throws SQLException {

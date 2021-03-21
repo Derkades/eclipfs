@@ -70,6 +70,8 @@ public class OnlineNode extends Node {
 	}
 
 	public boolean requestReplicate(final Chunk chunk, final OnlineNode target) throws IOException {
+		Validate.notNull(chunk, "Chunk is null");
+		Validate.notNull(target, "Target node is null");
 		final String targetAddress = target.getAddress() + "/upload?chunk_token=" + chunk.getToken() + "&node_token=" + target.getToken(TransferType.UPLOAD);
 		Validation.validateUrl(targetAddress);
 		final HttpURLConnection connection = (HttpURLConnection) new URL(this.getAddress() + "/replicate?chunk_token=" + chunk.getToken() + "&node_token=" + this.getFullToken() + "&address=" + URLEncoder.encode(targetAddress, StandardCharsets.UTF_8)).openConnection();
@@ -85,11 +87,11 @@ public class OnlineNode extends Node {
 
 	public static void processNodeAnnounce(final String token, final URL address,
 			final String version, final long freeSpace, final long storageQuota) throws SQLException, NodeNotFoundException {
-		Validate.notNull(token);
-		Validate.notNull(version);
-		Validate.notNull(address);
-		Validate.inclusiveBetween(0, Long.MAX_VALUE, freeSpace);
-		Validate.inclusiveBetween(0, Long.MAX_VALUE, storageQuota);
+		Validate.notNull(token, "Token is null");
+		Validate.notNull(version, "Version is null");
+		Validate.notNull(address, "Address is null");
+		Validate.inclusiveBetween(0, Long.MAX_VALUE, freeSpace, "Free space must be >= 0");
+		Validate.inclusiveBetween(0, Long.MAX_VALUE, storageQuota, "Storage quota must be >= 0");
 		synchronized(NODE_LOCK) {
 			if (BY_TOKEN.containsKey(token)) {
 				// Node exists

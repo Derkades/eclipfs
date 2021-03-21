@@ -19,22 +19,26 @@ public class Node {
 
 	protected final long id;
 	protected final String token;
-	protected final String location;
 	protected final String name;
+	protected final String location;
 
 	private Node(final ResultSet result) throws SQLException {
-		Validate.notNull(result);
+		Validate.notNull(result, "result is null");
 		this.id = result.getLong("id");
 		this.token = result.getString("token");
-		this.location = result.getString("location");
 		this.name = result.getString("name");
+		this.location = result.getString("location");
 	}
 
 	protected Node(final long id, final String token, final String location, final String name) {
+		Validate.isTrue(id >= 0, "Id is negative");
+		Validate.notNull(token, "Token is null");
+		Validate.notNull(location, "Location is null");
+		Validate.notNull(name, "Name is null");
 		this.id = id;
 		this.token = token;
-		this.location = location;
 		this.name = name;
+		this.location = location;
 	}
 
 	public long getId() {
@@ -56,6 +60,7 @@ public class Node {
 	}
 
 	public String getToken(final TransferType transferType) {
+		Validate.notNull(transferType, "Transfer type is null");
 		if (transferType == TransferType.UPLOAD) {
 			return getWriteToken();
 		} else if (transferType == TransferType.DOWNLOAD) {
@@ -92,6 +97,9 @@ public class Node {
 	}
 
 	public static Node createNode(final String name, final String location) throws SQLException {
+		Validate.notNull(name, "Name is null");
+		Validate.notNull(location, "Location is null");
+
 		final String token = RandomStringUtils.randomAlphanumeric(128);
 
 		try (Connection conn = Database.getConnection();
@@ -107,6 +115,7 @@ public class Node {
 
 	public static void deleteNode(final Node node) throws SQLException {
 		Validate.notNull(node);
+
 		try (Connection conn = Database.getConnection();
 				PreparedStatement query = conn.prepareStatement("DELETE FROM \"node\" WHERE id=?")) {
 			query.setLong(1, node.getId());
