@@ -6,11 +6,9 @@ from requests_toolbelt import sessions
 import base64
 import json as jsonlib
 
-DEFAULT_TIMEOUT = 30
-
 class TimeoutHTTPAdapter(HTTPAdapter):
     def __init__(self, *args, **kwargs):
-        self.timeout = DEFAULT_TIMEOUT
+        self.timeout = config.REQUEST_TIMEOUT
         if "timeout" in kwargs:
             self.timeout = kwargs["timeout"]
             del kwargs["timeout"]
