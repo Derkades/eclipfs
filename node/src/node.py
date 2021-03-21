@@ -1,11 +1,3 @@
-# def app(environ, start_response):
-#     data = b"Hello, World!\n"
-#     start_response("200 OK", [
-#         ("Content-Type", "text/plain"),
-#         ("Content-Length", str(len(data)))
-#     ])
-#     return iter([data])
-
 from flask import Flask, Response, request, abort, jsonify
 from threading import Thread
 from time import sleep
@@ -104,11 +96,6 @@ def create_chunk(chunk_token, data):
 @app.route('/ping', methods=['GET'])
 def ping():
     verify_request_auth('full')
-    # if not request.json or 'number' not in request.json:
-    #     abort(400)
-    # num = request.json['number']
-
-    # return jsonify({'answer': num ** 2})
     return Response(response='pong', content_type="text/plain")
 
 
@@ -134,10 +121,11 @@ def upload():
     if success:
         return Response('ok', content_type='text/plain')
     else:
-        # TODO delete the chunk when this fails
-        # later note: is this necessary? won't garbage collection take care of it?
-        print('error sending chunk upload notification to master server:', response, error_message)
-        abort(500, 'Unable to send chunk upload notification to master server')
+        # chunk is already written to disk and not accounted for on metaserver
+        # metaserver will try to replicate and garbage collection will remove the
+        # chunk from this chunkserver.
+        print('error sending chunk upload notification to metaserver:', response, error_message)
+        abort(500, 'Unable to send chunk upload notification to metaserver')
 
 
 @app.route('/replicate', methods=['POST'])
@@ -182,9 +170,9 @@ def announce():
     try:
         (success, response, error_message) = dsnapi.announce()
         if not success:
-            print('Unable to contact master server:', response, error_message)
+            print('Unable to contact metaserver:', response, error_message)
     except RequestException as e:
-        print('Unable to contact master server:', e)
+        print('Unable to contact metaserver:', e)
 
 
 def ls(path, is_file=False):
@@ -276,21 +264,6 @@ def timers():
         sleep(1)
 
 
-# garbage_collect()
-
-
 t = threading.Thread(target=timers, args=[])
 t.daemon = True # required to exit nicely on SIGINT
 t.start()
-
-# if __name__ == '__main__':
-#     print('test', flush=True)
-#     print('test')
-#     thread = Thread(target = timers, args = (10, ))
-#     thread.start()
-#     thread.join()
-
-#     app.run()
-
-# if __name__ == '__main__':
-#     app.run(host='127.0.0.1', port=8080, debug=True)

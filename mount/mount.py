@@ -123,10 +123,6 @@ class Operations(pyfuse3.Operations):
             while inode:
                 # Note: one inode in the write buffer may appear multiple times, with different chunk indices. We only selet one
                 (data, chunk_index) = self._get_row('SELECT data,chunk_index FROM write_buffer WHERE inode=? LIMIT 1', (inode,))
-                # info = Inode.by_inode(inode)
-                # inode_p = self._get_parent(inode)
-                # dir_path = self._get_full_path(inode_p)
-                # file_name = self._get_name(inode)
 
                 encrypted_data = self._get_cipher(inode, chunk_index).encrypt(data)
                 checksum = hashlib.md5(encrypted_data).hexdigest()
@@ -139,8 +135,6 @@ class Operations(pyfuse3.Operations):
                 if not success:
                     print('FAILED TO REQUEST CHUNK TRANSFER', inode, chunk_index)
                     failure = True
-                    # self.write_lock.release()
-                    # raise(FUSEError(errno.EREMOTEIO))
                     break
 
                 url = response['url']
@@ -156,8 +150,6 @@ class Operations(pyfuse3.Operations):
                     print('FAILED TO UPLOAD CHUNK status code', r.status_code, r.content)
                     failure = True
                     break
-                    # self.write_lock.release()
-                    # raise(FUSEError(errno.EREMOTEIO))
 
                 # TODO in the future: instead of simply removing from write buffer, move to read cache
 
@@ -504,43 +496,6 @@ class Operations(pyfuse3.Operations):
 
         (Successful) execution of this handler increases the lookup count for the returned inode by one.
         """
-        # print('Creating files not implemented')
-        # print('create', 'inode_p', inode_p, 'name', name, 'mode', mode, 'flags', flags)
-
-        # if inode_p == pyfuse3.ROOT_INODE:
-        #     print('Cannot create file in root directory!')
-        #     raise(FUSEError(errno.ENOTSUP))
-
-        # # as always, refresh before any operation
-        # self._refresh_dir(inode_p)
-
-        # dir_path = self._get_full_path(inode_p)
-
-        # # check if file exists
-        # try:
-        #     inode = self._get_inode(inode_p, name)
-        #     # no exception, it does!
-        #     raise(FUSEError(errno.EEXIST)) # File exists
-        # except NoSuchRowError:
-        #     # file does not exist, good
-        #     pass
-
-        # (success, _response) = api.post('fileCreate', {'dir': dir_path, 'name': name})
-        # if not success:
-        #     raise(FUSEError(errno.EREMOTEIO)) # Remote I/O error
-
-        # # refresh dir to get newly created file
-        # self._refresh_dir(inode_p)
-
-        # inode = self._get_inode(inode_p, name)
-
-        # return (pyfuse3.FileInfo(fh=inode), await self.getattr(inode))
-
-        # raise(FUSEError(errno.ENOSYS))
-
-        # entry = await self._create(inode_parent, name, mode, ctx)
-        # self.inode_open_count[entry.st_ino] += 1
-        # return (pyfuse3.FileInfo(fh=entry.st_ino), entry)
         info = Inode.by_mkfile(inode_p, name)
         return (pyfuse3.FileInfo(fh=info.inode()), self._getattr(info, ctx))
 
@@ -569,10 +524,7 @@ class Operations(pyfuse3.Operations):
     async def read(self, fh, offset, length):
         start_chunk = offset // config.CHUNKSIZE
         end_chunk = (offset+length) // config.CHUNKSIZE
-        # inode = fh
         print('read', 'handle', fh, 'offset', offset, 'length', length, 'chunk start', start_chunk, 'chunk end', end_chunk)
-
-        # info = Inode.by_inode(fh)
 
         chunks_data = b''
         for chunk_index in range(start_chunk, end_chunk + 1):
@@ -583,11 +535,9 @@ class Operations(pyfuse3.Operations):
                 print('Chunk data not in write buffer for chunk index', chunk_index)
                 self.read_cache_lock.acquire()
                 try:
-                    # raise NoSuchRowError()
                     self.cursor.execute('DELETE FROM read_cache WHERE time < ?', (int(time.time()) - 10,))
                     chunk_data = self._get_row('SELECT data FROM read_cache WHERE inode=? AND chunk_index=?', (fh, chunk_index))['data']
                     print('Chunk data found in read cache')
-                    # print(chunk_data)
                     self.read_cache_lock.release()
                 except NoSuchRowError:
                     print('Chunk data not in read cache for chunk index', chunk_index)
@@ -603,12 +553,7 @@ class Operations(pyfuse3.Operations):
 
             chunks_data += chunk_data
 
-        # print(chunks_data)
         data_offset = offset % config.CHUNKSIZE
-        # print(chunks_data[data_offset:data_offset+length])
-        # final = chunks_data[data_offset:data_offset+length]
-        # print('a', final, len(final), length)
-        # return final
         return chunks_data[data_offset:data_offset+length]
 
 
