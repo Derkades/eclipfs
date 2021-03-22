@@ -3,4 +3,4 @@ metaserver/target
 metaserver/.classpath
 metaserver/.project
 metaserver/.settings
-mount/__pycache__
+mount/src/__pycache__/
