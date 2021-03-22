@@ -104,7 +104,7 @@ class Operations(pyfuse3.Operations):
 
         if not force:
             num_entries = self._get_row('SELECT COUNT(*) FROM write_buffer')[0]
-            print('Write buffer contains', num_entries, 'entries')
+            # print('Write buffer contains', num_entries, 'entries')
             if num_entries < 10:
                 print('skip clearing write buffer')
                 self.write_lock.release()
@@ -128,7 +128,7 @@ class Operations(pyfuse3.Operations):
                 checksum = hashlib.md5(encrypted_data).hexdigest()
                 size = len(encrypted_data)
 
-                print('making chunkTransfer request', inode, chunk_index, checksum, size, inode)
+                # print('making chunkTransfer request', inode, chunk_index, checksum, size, inode)
 
                 request_data = {
                     'file': inode,
@@ -523,7 +523,11 @@ class Operations(pyfuse3.Operations):
 
         (success, response) = api.post('chunkTransfer', data=data)
         if not success:
-            return 'apierror', response
+            if response == 15:
+                # chunk does not exist
+                return 'success', b''
+            else:
+                return 'apierror', response
         download_url = response['url']
         checksum = response['checksum']
         node_response = api.get_requests_session().get(download_url)
@@ -547,9 +551,9 @@ class Operations(pyfuse3.Operations):
         for chunk_index in range(start_chunk, end_chunk + 1):
             try:
                 chunk_data = self._get_row('SELECT data FROM write_buffer WHERE inode=? AND chunk_index=?', (fh, chunk_index))['data']
-                print('read: found data in local buffer')
+                # print('read: found data in local buffer')
             except NoSuchRowError:
-                print('Chunk data not in write buffer for chunk index', chunk_index)
+                # print('Chunk data not in write buffer for chunk index', chunk_index)
                 self.read_cache_lock.acquire()
                 try:
                     self.cursor.execute('DELETE FROM read_cache WHERE time < ?', (int(time.time()) - 10,))
@@ -557,10 +561,10 @@ class Operations(pyfuse3.Operations):
                     print('Chunk data found in read cache')
                     self.read_cache_lock.release()
                 except NoSuchRowError:
-                    print('Chunk data not in read cache for chunk index', chunk_index)
+                    # print('Chunk data not in read cache for chunk index', chunk_index)
                     (status, chunk_data) = self._download_chunk(fh, chunk_index)
                     if status != 'success':
-                        print('Download error:', status, len(chunk_data))
+                        print('Download error:', status)
                         self.read_cache_lock.release()
                         raise(FUSEError(errno.EIO))
 
@@ -605,7 +609,7 @@ class Operations(pyfuse3.Operations):
                     chunk_data = response
                 elif status == 'apierror' and response == 15:
                     # chunk does not exist
-                    print(f'Chunk {chunk_index} does not exist, using empty byte array')
+                    # print(f'Chunk {chunk_index} does not exist, using empty byte array')
                     chunk_data = b''
                 else:
                     print('Unknown download error', status, response)
@@ -614,20 +618,20 @@ class Operations(pyfuse3.Operations):
 
             # pad chunk with zero bytes if it's not the last chunk, so chunks align properly
             if chunk_index != end_chunk:
-                print('padding chunk_index', chunk_index, 'end_chunk', end_chunk, 'with', config.CHUNKSIZE - len(chunk_data), 'bytes - before length', len(chunk_data))
+                # print('padding chunk_index', chunk_index, 'end_chunk', end_chunk, 'with', config.CHUNKSIZE - len(chunk_data), 'bytes - before length', len(chunk_data))
                 chunk_data = chunk_data + bytearray(config.CHUNKSIZE - len(chunk_data))
-                print('length after padding', len(chunk_data))
+                # print('length after padding', len(chunk_data))
 
             chunks_data += chunk_data
 
         data_offset = offset % config.CHUNKSIZE
-        print('going to write data now, data size before', len(chunks_data))
+        # print('going to write data now, data size before', len(chunks_data))
         chunks_data = chunks_data[:data_offset] + buf + chunks_data[data_offset+len(buf):]
-        print('data size after', len(chunks_data))
+        # print('data size after', len(chunks_data))
 
         for chunk_index in range(start_chunk, end_chunk + 1):
             data = chunks_data[(chunk_index-start_chunk)*config.CHUNKSIZE:(chunk_index-start_chunk+1)*config.CHUNKSIZE]
-            print('putting data in write buffer - chunk index', chunk_index, 'offset start', (chunk_index-start_chunk)*config.CHUNKSIZE, 'offset end', (chunk_index-start_chunk+1)*config.CHUNKSIZE, 'data len', len(data))
+            # print('putting data in write buffer - chunk index', chunk_index, 'offset start', (chunk_index-start_chunk)*config.CHUNKSIZE, 'offset end', (chunk_index-start_chunk+1)*config.CHUNKSIZE, 'data len', len(data))
             timestamp = int(time.time())
             values = (fh, chunk_index, data, timestamp, data, timestamp)
             self.cursor.execute('INSERT INTO write_buffer (inode, chunk_index, data, last_update) VALUES (?,?,?,?) ON CONFLICT(inode, chunk_index) DO UPDATE SET data=?, last_update=?', values)
