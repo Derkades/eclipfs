@@ -14,6 +14,7 @@ import eclipfs.metaserver.Database;
 import eclipfs.metaserver.MetaServer;
 import eclipfs.metaserver.Validation;
 import eclipfs.metaserver.exception.AlreadyExistsException;
+import eclipfs.metaserver.http.BcryptCredential;
 
 public class User {
 
@@ -37,15 +38,15 @@ public class User {
 		return this.username;
 	}
 
-	public boolean hasPassword() {
-		return this.passwordHash != null;
-	}
-
 	public boolean verifyPassword(final String password) {
 		Validate.notNull(password);
 		Validate.notNull(this.passwordHash);
 
         return MetaServer.PASSWORD_ENCODER.matches(password, this.passwordHash);
+	}
+
+	public BcryptCredential getCredential() {
+		return new BcryptCredential(this.passwordHash);
 	}
 
 	public boolean hasWriteAccess() {
@@ -96,6 +97,9 @@ public class User {
 			query.setString(2, hash);
 			final ResultSet result = query.executeQuery();
 			result.next();
+
+			MetaServer.getHttpSecurityManager().reloadUserStore();
+
 			return new User(result);
 		}
 	}

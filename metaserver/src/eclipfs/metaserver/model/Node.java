@@ -78,6 +78,26 @@ public class Node {
 		return this.location;
 	}
 
+	public int getStoredChunkCount() throws SQLException {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT COUNT(*) FROM chunk_node WHERE node=?")) {
+			query.setLong(1, this.getId());
+			final ResultSet result = query.executeQuery();
+			result.next();
+			return result.getInt(1);
+		}
+	}
+
+	public long getStoredChunkSize() throws SQLException {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT SUM(size) FROM chunk JOIN chunk_node ON chunk.id=chunk WHERE node=?")) {
+			query.setLong(1, this.getId());
+			final ResultSet result = query.executeQuery();
+			result.next();
+			return result.getLong(1);
+		}
+	}
+
 	@Override
 	public boolean equals(final Object other) {
 		return other != null && other instanceof Node && ((Node) other).getId() == this.getId();

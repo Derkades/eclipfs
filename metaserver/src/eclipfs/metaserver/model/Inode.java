@@ -106,6 +106,33 @@ public abstract class Inode {
 		return Long.hashCode(this.id);
 	}
 
+	public static int fileCount() throws SQLException {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT COUNT(*) FROM inode WHERE is_file='True'")) {
+			final ResultSet result = query.executeQuery();
+			result.next();
+			return result.getInt(1);
+		}
+	}
+
+	public static int directoryCount() throws SQLException {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT COUNT(*) FROM inode WHERE is_file='False'")) {
+			final ResultSet result = query.executeQuery();
+			result.next();
+			return result.getInt(1);
+		}
+	}
+
+	public static int inodeCount() throws SQLException {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT COUNT(*) FROM inode")) {
+			final ResultSet result = query.executeQuery();
+			result.next();
+			return result.getInt(1);
+		}
+	}
+
 	public static Optional<Inode> byId(final long id) throws SQLException {
 		Validate.isTrue(id >= 0, "inode must be >= 0");
 		try (Connection conn = Database.getConnection();

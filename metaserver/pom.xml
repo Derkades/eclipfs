@@ -16,6 +16,12 @@
 	<build>
 		<sourceDirectory>src</sourceDirectory>
 
+		<resources>
+			<resource>
+				<directory>resources</directory>
+			</resource>
+		</resources>
+
 		<finalName>${project.name}</finalName>
 
 		<plugins>

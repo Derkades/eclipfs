@@ -10,12 +10,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.apache.commons.lang.Validate;
-import org.eclipse.jetty.server.CustomRequestLog;
-import org.eclipse.jetty.server.RequestLog;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.ServerConnector;
-import org.eclipse.jetty.server.Slf4jRequestLogWriter;
-import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
@@ -35,19 +29,10 @@ import eclipfs.metaserver.command.ToggleWriteAccessCommand;
 import eclipfs.metaserver.command.UpCommand;
 import eclipfs.metaserver.command.UserAddCommand;
 import eclipfs.metaserver.command.UserListCommand;
+import eclipfs.metaserver.http.HttpSecurityManager;
+import eclipfs.metaserver.http.JettyManager;
 import eclipfs.metaserver.model.Directory;
 import eclipfs.metaserver.model.Inode;
-import eclipfs.metaserver.servlet.client.ChunkInfo;
-import eclipfs.metaserver.servlet.client.ChunkTransfer;
-import eclipfs.metaserver.servlet.client.DirectoryCreate;
-import eclipfs.metaserver.servlet.client.FileCreate;
-import eclipfs.metaserver.servlet.client.GetEncryptionKey;
-import eclipfs.metaserver.servlet.client.InodeDelete;
-import eclipfs.metaserver.servlet.client.InodeInfo;
-import eclipfs.metaserver.servlet.client.InodeMove;
-import eclipfs.metaserver.servlet.node.Announce;
-import eclipfs.metaserver.servlet.node.CheckGarbage;
-import eclipfs.metaserver.servlet.node.NotifyChunkUploaded;
 
 public class MetaServer {
 
@@ -64,6 +49,8 @@ public class MetaServer {
 	public static final boolean DEBUG = true;
 
 	private static final String ENCRYPTION_KEY;
+
+	private static JettyManager httpServer;
 
 	static {
 		COMMANDS.put("cd", new ChangeDirectoryCommand());
@@ -94,7 +81,8 @@ public class MetaServer {
 
 		WORKING_DIRECTORY = Inode.getRootInode();
 
-		startWebServer();
+		httpServer = new JettyManager(7779); // TODO configurable port
+		httpServer.start();
 
 //		final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 //		executor.scheduleAtFixedRate(Replication::timer, 1, 30, TimeUnit.SECONDS);
@@ -141,32 +129,10 @@ public class MetaServer {
 		}
 	}
 
-	private static void startWebServer() throws Exception {
-		final int port = 7779;
-		final String host = "0.0.0.0";
-		final Server server = new Server();
-		final ServletContextHandler handler = new ServletContextHandler(ServletContextHandler.SESSIONS);
-		handler.addServlet(ChunkInfo.class, "/client/chunkInfo");
-		handler.addServlet(ChunkTransfer.class, "/client/chunkTransfer");
-		handler.addServlet(DirectoryCreate.class, "/client/directoryCreate");
-		handler.addServlet(FileCreate.class, "/client/fileCreate");
-		handler.addServlet(GetEncryptionKey.class, "/client/getEncryptionKey");
-		handler.addServlet(InodeDelete.class, "/client/inodeDelete");
-		handler.addServlet(InodeInfo.class, "/client/inodeInfo");
-		handler.addServlet(InodeMove.class, "/client/inodeMove");
+	private static HttpSecurityManager securityManager;
 
-		handler.addServlet(Announce.class, "/node/announce");
-		handler.addServlet(CheckGarbage.class, "/node/checkGarbage");
-		handler.addServlet(NotifyChunkUploaded.class, "/node/notifyChunkUploaded");
-		server.setHandler(handler);
-        final ServerConnector connector = new ServerConnector(server);
-        connector.setHost(host);
-        connector.setPort(port);
-        server.addConnector(connector);
-        final RequestLog.Writer writer = new Slf4jRequestLogWriter();
-        final RequestLog requestLog = new CustomRequestLog(writer, CustomRequestLog.NCSA_FORMAT);
-        server.setRequestLog(requestLog);
-		server.start();
+	public static HttpSecurityManager getHttpSecurityManager() {
+		return securityManager;
 	}
 
 	public static String getEncryptionKey() {

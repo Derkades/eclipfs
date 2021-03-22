@@ -47,17 +47,39 @@ public class Replication {
 		return System.currentTimeMillis() - lastBusyTime < Tunables.REPLICATION_IDLE_WAIT;
 	}
 
+	// for dashboard
+	public static String getStatus() {
+		if (isBusy()) {
+			return "Waiting (transfers in progress)";
+		}
+
+		if (CHUNK_CHECK_QUEUE.isEmpty()) {
+			return "Idle (nothing to do)";
+		}
+
+		if (CHUNK_CHECK_QUEUE.size() > Tunables.REPLICATION_FAST_THRESHOLD) {
+			return "Running (fast)";
+		} else {
+			return "Running (slow)";
+		}
+	}
+
+	// for dashboard
+	public static int getQueueSize() {
+		return CHUNK_CHECK_QUEUE.size();
+	}
+
 	static void run() {
 		while(true) {
 			try {
-				Thread.sleep(CHUNK_CHECK_QUEUE.size() > 100 ? 100 : 500);
+				Thread.sleep(CHUNK_CHECK_QUEUE.size() > Tunables.REPLICATION_FAST_THRESHOLD ? Tunables.REPLICATION_FAST_DELAY : Tunables.REPLICATION_SLOW_DELAY);
 
 				if (isBusy()) {
 					continue;
 				}
 
 				if (CHUNK_CHECK_QUEUE.isEmpty()) {
-					addUndergoalChunks(1000);
+					addUndergoalChunks(Tunables.REPLICATION_ADD_AMOUNT);
 					continue;
 				}
 
