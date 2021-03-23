@@ -14,8 +14,6 @@ import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
 import org.jline.reader.UserInterruptException;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import eclipfs.metaserver.command.ChangeDirectoryCommand;
 import eclipfs.metaserver.command.Command;
@@ -29,8 +27,8 @@ import eclipfs.metaserver.command.ToggleWriteAccessCommand;
 import eclipfs.metaserver.command.UpCommand;
 import eclipfs.metaserver.command.UserAddCommand;
 import eclipfs.metaserver.command.UserListCommand;
-import eclipfs.metaserver.http.HttpSecurityManager;
 import eclipfs.metaserver.http.JettyManager;
+import eclipfs.metaserver.http.PasswordChecker;
 import eclipfs.metaserver.model.Directory;
 import eclipfs.metaserver.model.Inode;
 
@@ -39,9 +37,6 @@ public class MetaServer {
 	public static Directory WORKING_DIRECTORY;
 
 	public static final Logger LOGGER = Logger.getGlobal();
-
-	public static final PasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder();
-
 	private static final Map<String, Command> COMMANDS = new HashMap<>();
 
 	private static final ExecutorService THREAD_POOL = Executors.newCachedThreadPool();
@@ -51,6 +46,8 @@ public class MetaServer {
 	private static final String ENCRYPTION_KEY;
 
 	private static JettyManager httpServer;
+
+	private static PasswordChecker passwordChecker = new PasswordChecker();
 
 	static {
 		COMMANDS.put("cd", new ChangeDirectoryCommand());
@@ -129,14 +126,16 @@ public class MetaServer {
 		}
 	}
 
-	private static HttpSecurityManager securityManager;
-
-	public static HttpSecurityManager getHttpSecurityManager() {
-		return securityManager;
+	public static JettyManager getHttpServer() {
+		return httpServer;
 	}
 
 	public static String getEncryptionKey() {
 		return ENCRYPTION_KEY;
+	}
+
+	public static PasswordChecker getPasswordChecker() {
+		return passwordChecker;
 	}
 
 }

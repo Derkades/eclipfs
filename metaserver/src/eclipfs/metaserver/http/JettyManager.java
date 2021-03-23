@@ -4,6 +4,7 @@ import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.sql.SQLException;
 
+import org.eclipse.jetty.io.ConnectionStatistics;
 import org.eclipse.jetty.server.CustomRequestLog;
 import org.eclipse.jetty.server.RequestLog;
 import org.eclipse.jetty.server.Server;
@@ -31,13 +32,11 @@ import eclipfs.metaserver.servlet.node.NotifyChunkUploaded;
 
 public class JettyManager {
 
-	private final HttpSecurityManager security;
-	private final Server server;
+	private final HttpSecurityManager security = new HttpSecurityManager();
+	private final Server server  = new Server();
+	final ConnectionStatistics stats = new ConnectionStatistics();
 
 	public JettyManager(final int port) throws MalformedURLException, SQLException, URISyntaxException {
-		this.security = new HttpSecurityManager();
-		this.server = new Server();
-
 		final ServletContextHandler clientApiContext = new ServletContextHandler();
 		clientApiContext.setContextPath("/client");
 		clientApiContext.addServlet(ChunkInfo.class, "/chunkInfo");
@@ -85,10 +84,20 @@ public class JettyManager {
 		final RequestLog.Writer writer = new Slf4jRequestLogWriter();
 		final RequestLog requestLog = new CustomRequestLog(writer, CustomRequestLog.NCSA_FORMAT);
 		this.server.setRequestLog(requestLog);
+
+		connector.addBean(this.stats);
 	}
 
 	public void start() throws Exception {
 		this.server.start();
+	}
+
+	public ConnectionStatistics getStatistics() {
+		return this.stats;
+	}
+
+	public HttpSecurityManager getSecurityManager() {
+		return this.security;
 	}
 
 }

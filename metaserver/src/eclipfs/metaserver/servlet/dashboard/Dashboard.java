@@ -6,6 +6,9 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
 
+import org.eclipse.jetty.io.ConnectionStatistics;
+
+import eclipfs.metaserver.MetaServer;
 import eclipfs.metaserver.Replication;
 import eclipfs.metaserver.Util;
 import eclipfs.metaserver.model.Inode;
@@ -22,6 +25,7 @@ public class Dashboard extends HttpServlet {
 
 	@Override
 	protected void doGet(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
+		final long start = System.currentTimeMillis();
 		try {
 			response.setContentType("text/html");
 			final PrintWriter writer = response.getWriter();
@@ -92,19 +96,12 @@ public class Dashboard extends HttpServlet {
 
 				writeTable(writer, columns, data);
 			}
-			writer.print("");
-			writer.print("");
-			writer.print("");
-			writer.print("");
-			writer.print("");
-			writer.print("");
-			writer.print("");
-			writer.print("");
-			writer.print("");
-			writer.print("");
-			writer.print("");
-			writer.print("");
-			writer.print("");
+			final ConnectionStatistics stats = MetaServer.getHttpServer().getStatistics();
+			writer.print("<span class=\"text-muted\">");
+			writer.print("Page render took " + (System.currentTimeMillis() - start) + " ms. ");
+			writer.print("Connections: " + stats.getConnections() + " / " + stats.getConnectionsTotal() + ".");
+			writer.print("Traffic: " + Util.formatByteCount(stats.getSentBytes()) + " sent / " + Util.formatByteCount(stats.getReceivedBytes()) + " received.");
+			writer.print("</span>");
 			writer.print("</div>");
 			writer.print("</body>");
 			writer.print("</html>");

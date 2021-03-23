@@ -42,7 +42,7 @@ public class User {
 		Validate.notNull(password);
 		Validate.notNull(this.passwordHash);
 
-        return MetaServer.PASSWORD_ENCODER.matches(password, this.passwordHash);
+        return MetaServer.getPasswordChecker().checkPassword(password, this.passwordHash);
 	}
 
 	public BcryptCredential getCredential() {
@@ -89,7 +89,7 @@ public class User {
 			throw new AlreadyExistsException("User already exists");
 		}
 
-		final String hash = MetaServer.PASSWORD_ENCODER.encode(password);
+		final String hash = MetaServer.getPasswordChecker().hashPassword(password);
 
 		try (Connection conn = Database.getConnection();
 				PreparedStatement query = conn.prepareStatement("INSERT INTO \"user\" (username, password) VALUES (?,?) RETURNING *")) {
@@ -98,7 +98,7 @@ public class User {
 			final ResultSet result = query.executeQuery();
 			result.next();
 
-			MetaServer.getHttpSecurityManager().reloadUserStore();
+			MetaServer.getHttpServer().getSecurityManager().reloadUserStore();
 
 			return new User(result);
 		}

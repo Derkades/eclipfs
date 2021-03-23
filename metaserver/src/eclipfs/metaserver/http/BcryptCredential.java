@@ -24,7 +24,7 @@ public class BcryptCredential extends Credential {
 		}
 
         if (credentials instanceof Password || credentials instanceof String) {
-        	return MetaServer.PASSWORD_ENCODER.matches(credentials.toString(), this.hash);
+        	return MetaServer.getPasswordChecker().checkPassword(credentials.toString(), this.hash);
         }
 
         if (credentials instanceof BcryptCredential){

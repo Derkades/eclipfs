@@ -16,33 +16,38 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 public class InodeInfo extends HttpServlet {
-	
+
 	private static final long serialVersionUID = 1L;
 
 	@Override
 	protected void doGet(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
 		try {
+			final long start = System.currentTimeMillis();
 			if (ClientAuthentication.verify(request, response).isEmpty()) {
 				return;
 			}
-			
+			System.out.println(System.currentTimeMillis() - start);
+
 			final Inode inode = HttpUtil.getInodeParameter(request, response);
-			
+
 			if (inode == null) {
 				return;
 			}
-			
+
 			try (JsonWriter writer = HttpUtil.getJsonWriter(response)) {
 				writer.beginObject();
+
 				writeInodeInfoJson(inode, writer);
 				if (!inode.isFile()) {
 					final Directory directory = (Directory) inode;
 					writer.name("directories").beginArray();
+
 					for (final Directory subdir : directory.listDirectories()) {
 						writer.beginObject();
 						writeInodeInfoJson(subdir, writer);
 						writer.endObject();
 					}
+
 					writer.endArray();
 					writer.name("files").beginArray();
 					for (final File file : directory.listFiles()) {
@@ -52,14 +57,16 @@ public class InodeInfo extends HttpServlet {
 					}
 					writer.endArray();
 				}
+
 				writer.endObject();
 			}
+
 		} catch (final SQLException e) {
 			HttpUtil.handleSqlException(response, e);
 			return;
 		}
 	}
-	
+
 	static void writeInodeInfoJson(final Inode inode, final JsonWriter writer) throws IOException, SQLException {
 		Validate.notNull(inode, "Inode is null");
 		Validate.notNull(writer, "Writer is null");
