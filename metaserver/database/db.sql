@@ -12,6 +12,8 @@ CREATE TABLE "node" (
   "name" text NOT NULL
 );
 
+CREATE INDEX "node_token_idx" ON "node" ("token");
+
 CREATE TABLE "inode" (
   "id" serial UNIQUE PRIMARY KEY,
   "parent" serial NOT NULL REFERENCES inode(id),
