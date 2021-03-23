@@ -49,10 +49,9 @@ def get(api_method, params={}):
     if r.status_code == 200:
         json = r.json()
         if 'error' in json:
-            print('API error, error code is printed below. (this does not always indicate a bug, sometimes API errors are normal)')
             error_code = json['error']
-            error_message = json['error_message'] if 'error_message' in json else 'No error message available'
-            print(f'{error_code}: {error_message}')
+            error_message = json['error_message'] if 'error_message' in json else '?'
+            print('API error', error_code, error_message, '(note: in many cases API errors are expected)')
             return (False, error_code)
         else:
             return (True, json)
@@ -74,10 +73,9 @@ def post(api_method, data):
             print('Response as text:', r.text)
 
         if 'error' in json:
-            print('API error, error code is printed below (this does not always indicate a bug, sometimes API errors are normal)')
             error_code = json['error']
-            error_message = json['error_message'] if 'error_message' in json else 'No error message available'
-            print(f'{error_code}: {error_message}')
+            error_message = json['error_message'] if 'error_message' in json else '?'
+            print('API error', error_code, error_message, '(note: in many cases API errors are expected)')
             return (False, error_code)
         else:
             return (True, json)

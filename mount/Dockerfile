@@ -14,4 +14,4 @@ RUN mkdir /app
 WORKDIR /app
 COPY src/ /app
 
-ENTRYPOINT python -u mount.py --debug /mnt
+ENTRYPOINT python -u mount.py /mnt
