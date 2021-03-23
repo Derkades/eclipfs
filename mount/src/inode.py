@@ -66,8 +66,11 @@ class Inode:
     def size(self):
         return self.response['size']
 
+    def crtime(self):
+        return self.response['crtime']
+
     def ctime(self):
-        return self.response['ctime']
+        return self.mtime()
 
     def mtime(self):
         return self.response['mtime']

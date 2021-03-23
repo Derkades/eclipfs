@@ -22,11 +22,9 @@ public class InodeInfo extends HttpServlet {
 	@Override
 	protected void doGet(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
 		try {
-			final long start = System.currentTimeMillis();
 			if (ClientAuthentication.verify(request, response).isEmpty()) {
 				return;
 			}
-			System.out.println(System.currentTimeMillis() - start);
 
 			final Inode inode = HttpUtil.getInodeParameter(request, response);
 
@@ -75,7 +73,7 @@ public class InodeInfo extends HttpServlet {
 		writer.name("path").value(inode.getAbsolutePath());
 		writer.name("type").value(inode.isFile() ? "f" : "d");
 		writer.name("size").value(inode.getSize());
-		writer.name("ctime").value(inode.getCtime());
+		writer.name("crtime").value(inode.getCrtime());
 		writer.name("mtime").value(inode.getMtime());
 		writer.name("parent").value(inode.getParentId());
 	}

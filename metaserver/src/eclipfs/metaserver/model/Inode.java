@@ -60,7 +60,7 @@ public abstract class Inode {
 		return this.name;
 	}
 
-	public final long getCtime() {
+	public final long getCrtime() {
 		return this.ctime;
 	}
 
