@@ -49,6 +49,7 @@ class Operations(pyfuse3.Operations):
         self.init_tables()
         self.cache_lock = threading.Lock()
         self.encryption_key = encryption_key
+        self.dir_handles = {}
 
 
     def init_tables(self):
@@ -242,8 +243,18 @@ class Operations(pyfuse3.Operations):
         raise(FUSEError(errno.ENOTSUP)) # Error: not supported
 
 
-    async def opendir(self, fh, ctx):
+    async def opendir(self, inode, ctx):
+        fh = 0
+        while fh in self.dir_handles:
+            fh += 1
+
+        self.dir_handles[fh] = Inode.by_inode(inode)
+        print('opendir', inode, fh)
         return fh
+
+
+    async def releasedir(self, fh):
+        del self.dir_handles[fh]
 
 
     async def readdir(self, fh, start_index, token):
@@ -270,8 +281,7 @@ class Operations(pyfuse3.Operations):
         filesystem must not increase the lookup count for the corresponding inodes (even if
         readdir_reply returns True).
         """
-
-        info = Inode.by_inode(fh)
+        info = self.dir_handles[fh]
         entries = info.list_as_tuple()
 
         for i, (inode, name) in enumerate(entries):
