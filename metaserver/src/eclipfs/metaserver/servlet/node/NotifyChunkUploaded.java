@@ -6,7 +6,6 @@ import java.util.Optional;
 
 import com.google.gson.JsonObject;
 
-import eclipfs.metaserver.Replication;
 import eclipfs.metaserver.model.Chunk;
 import eclipfs.metaserver.model.File;
 import eclipfs.metaserver.model.Node;
@@ -60,7 +59,7 @@ public class NotifyChunkUploaded extends HttpServlet {
 
 			chunk.addNode(node);
 
-			Replication.addToCheckQueue(chunk);
+//			Replication.addToCheckQueue(chunk);
 
 			HttpUtil.writeSuccessTrueJson(response);
 		} catch (final SQLException e) {

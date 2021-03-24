@@ -7,12 +7,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import eclipfs.metaserver.Nodes.FilterStrategy;
 import eclipfs.metaserver.model.Chunk;
@@ -21,26 +22,12 @@ import eclipfs.metaserver.model.OnlineNode;
 
 public class Replication {
 
-	private static final Logger LOGGER = Logger.getLogger("Replication");
-
-	private static final Set<Long> DUPE_CHECK = new HashSet<>();
-	private static final Deque<Long> CHUNK_CHECK_QUEUE = new ArrayDeque<>();
+	private static final Logger LOGGER = LoggerFactory.getLogger("Replication");
 
 	private static long lastBusyTime = 0;
 
 	public static void signalBusy() {
 		lastBusyTime = System.currentTimeMillis();
-	}
-
-	public static void addToCheckQueue(final Chunk chunk) {
-		addToCheckQueue(chunk.getId());
-	}
-
-	public static void addToCheckQueue(final long chunkId) {
-		if (!DUPE_CHECK.contains(chunkId)) {
-			DUPE_CHECK.add(chunkId);
-			CHUNK_CHECK_QUEUE.add(chunkId);
-		}
 	}
 
 	private static boolean isBusy() {
@@ -53,43 +40,57 @@ public class Replication {
 			return "Waiting (transfers in progress)";
 		}
 
-		if (CHUNK_CHECK_QUEUE.isEmpty()) {
+		if (queue.isEmpty()) {
 			return "Idle (nothing to do)";
 		}
 
-		if (CHUNK_CHECK_QUEUE.size() > Tunables.REPLICATION_FAST_THRESHOLD) {
-			return "Running (fast)";
+		if (fast) {
+			return "Running (quickly)";
 		} else {
-			return "Running (slow)";
+			return "Running (slowly)";
 		}
 	}
 
+	final static Deque<Long> queue = new ArrayDeque<>();
+	static boolean fast = false;
+
 	// for dashboard
 	public static int getQueueSize() {
-		return CHUNK_CHECK_QUEUE.size();
+		return queue.size();
 	}
 
 	static void run() {
+
+
 		while(true) {
 			try {
-				Thread.sleep(CHUNK_CHECK_QUEUE.size() > Tunables.REPLICATION_FAST_THRESHOLD ? Tunables.REPLICATION_FAST_DELAY : Tunables.REPLICATION_SLOW_DELAY);
+				Thread.sleep(fast ? Tunables.REPLICATION_FAST_DELAY : Tunables.REPLICATION_SLOW_DELAY);
 
 				if (isBusy()) {
 					continue;
 				}
 
-				if (CHUNK_CHECK_QUEUE.isEmpty()) {
-					addUndergoalChunks(Tunables.REPLICATION_ADD_AMOUNT);
+				if (queue.isEmpty()) {
+					final long start = System.currentTimeMillis();
+					addUndergoalChunks(queue, Tunables.REPLICATION_ADD_AMOUNT);
+					final long time = System.currentTimeMillis() - start;
+					if (queue.isEmpty()) {
+						LOGGER.info("Queue still empty, going to sleep for a while (took " + time + "ms to find chunks).");
+						Thread.sleep(Tunables.REPLICATION_EMPTY_SLEEP);
+					} else {
+						LOGGER.info("Added " + queue.size() + " chunks to the replication queue (took " + time + "ms).");
+					}
 					continue;
 				}
 
-				LOGGER.info("Processing replication queue, " + CHUNK_CHECK_QUEUE.size() + " entries left.");
+				fast = queue.size() > Tunables.REPLICATION_FAST_THRESHOLD;
 
-				final long chunkId = CHUNK_CHECK_QUEUE.poll();
-				DUPE_CHECK.remove(chunkId);
+				LOGGER.info("Processing replication queue, " + queue.size() + " entries left.");
+
+				final long chunkId = queue.pop();
 				final Optional<Chunk> optChunk = Chunk.byId(chunkId);
 				if (optChunk.isEmpty()) {
-					LOGGER.warning("Skipping chunk " + chunkId + ", it has been deleted.");
+					LOGGER.warn("Skipping chunk " + chunkId + ", it has been deleted.");
 					continue;
 				}
 				final Chunk chunk = optChunk.get();
@@ -98,26 +99,24 @@ public class Replication {
 				final int replication = existingLabels.size();
 				final String chunkStr = chunk.getFile().getId() + "." + chunk.getIndex();
 				if (replication > Tunables.REPLICATION_GOAL) {
-					LOGGER.info("Chunk " + chunkStr + " is overgoal");
+					LOGGER.warn("Chunk " + chunkStr + " is overgoal");
 					continue;
 				} else if (replication == Tunables.REPLICATION_GOAL) {
-					LOGGER.info("Chunk " + chunkStr + " is replicated correctly");
+					LOGGER.warn("Chunk " + chunkStr + " is replicated correctly");
 					continue;
 				}
 
 				LOGGER.info("Chunk " + chunkStr + " is undergoal (" + replication + "/" + Tunables.REPLICATION_GOAL + ")");
 				final Optional<OnlineNode> optReplicationTarget = Nodes.selectNode(chunk, TransferType.UPLOAD, FilterStrategy.MUST_NOT, existingLabels);
 				if (optReplicationTarget.isEmpty()) {
-					LOGGER.warning("Cannot replicate chunk, no target node available. Current labels: " + String.join(", ", existingLabels) + "Adding to the queue for later..");
-					addToCheckQueue(chunkId);
+					LOGGER.warn("Cannot replicate chunk, no target node available. Current labels: " + String.join(", ", existingLabels));
 					continue;
 				}
 
 				final OnlineNode replicationTarget = optReplicationTarget.get();
 				final Optional<OnlineNode> optReplicationSource = Nodes.selectNode(chunk, TransferType.DOWNLOAD);
 				if (optReplicationSource.isEmpty()) {
-					LOGGER.warning("Cannot replicate chunk, not source node available. Adding to the queue for later..");
-					addToCheckQueue(chunkId);
+					LOGGER.warn("Cannot replicate chunk, not source node available.");
 					continue;
 				}
 
@@ -126,14 +125,12 @@ public class Replication {
 					if (replicationSource.requestReplicate(chunk, replicationTarget)) {
 						LOGGER.info("Successfully replicated chunk.");
 					} else {
-						LOGGER.warning("Error while replicating chunk, trying again later.");
-						addToCheckQueue(chunkId);
+						LOGGER.warn("Error while replicating chunk");
 						continue;
 					}
 				} catch (final IOException e) {
 					e.printStackTrace();
-					LOGGER.warning("Error while replicating chunk, trying again later. " + e.getClass().getSimpleName() + " " + e.getMessage());
-					addToCheckQueue(chunkId);
+					LOGGER.warn("Error while replicating chunk " + e.getClass().getSimpleName() + " " + e.getMessage());
 					continue;
 				}
 			} catch (final Exception e) {
@@ -142,16 +139,6 @@ public class Replication {
 		}
 	}
 
-//	static void timer() {
-//		try {
-////			addRandomChunksToQueue(20);
-////			addChunksSmart(1000);
-//		} catch (final SQLException e) {
-//			e.printStackTrace();
-//		}
-//	}
-
-//	@Deprecated
 //	public static void addRandomChunksToQueue(final int amount) throws SQLException {
 //		if (CHUNK_CHECK_QUEUE.size() > amount) {
 //			LOGGER.info("Chunk queue is already quite full, not adding random chunks");
@@ -166,28 +153,21 @@ public class Replication {
 //			}
 //		}
 //	}
-//
-//	@Deprecated
-//	public static void addAllChunksToQueue() throws SQLException {
-//		try (Connection conn = Database.getConnection();
-//				PreparedStatement query = conn.prepareStatement("SELECT id FROM chunk")){
-//			final ResultSet result = query.executeQuery();
-//			while (result.next()) {
-//				System.out.println(result.getLong(1));
-//				addToCheckQueue(result.getLong(1));
-//			}
-//		}
-//	}
 
-	public static void addUndergoalChunks(final int limit) throws SQLException {
+	public static void addUndergoalChunks(final Deque<Long> queue, final int limit) throws SQLException {
 		try (Connection conn = Database.getConnection();
-				PreparedStatement query = conn.prepareStatement("SELECT id FROM chunk JOIN chunk_node ON id=chunk GROUP BY chunk.id HAVING COUNT(node) < ? LIMIT ?")) {
-			query.setInt(1, Tunables.REPLICATION_GOAL);
+//				PreparedStatement query = conn.prepareStatement("SELECT id FROM chunk JOIN chunk_node ON id=chunk GROUP BY chunk.id HAVING COUNT(node) < ? LIMIT ?")) {
+				PreparedStatement query = conn.prepareStatement("SELECT chunk.id \n"
+						+ "FROM chunk \n"
+						+ "	JOIN chunk_node ON chunk=chunk.id \n"
+						+ "	JOIN node ON node=node.id \n"
+						+ "GROUP BY chunk.id \n"
+						+ "HAVING COUNT(DISTINCT node.location) < ? LIMIT ?")) {
+				query.setInt(1, Tunables.REPLICATION_GOAL);
 			query.setInt(2, limit);
 			final ResultSet result = query.executeQuery();
 			while (result.next()) {
-//				System.out.println(result.getLong(1));
-				addToCheckQueue(result.getLong(1));
+				queue.add(result.getLong(1));
 			}
 		}
 	}

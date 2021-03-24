@@ -82,7 +82,7 @@ public class MetaServer {
 		httpServer.start();
 
 //		final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-//		executor.scheduleAtFixedRate(Replication::timer, 1, 30, TimeUnit.SECONDS);
+//		executor.scheduleAtFixedRate(Replication::timer, 30, 30, TimeUnit.SECONDS);
 
 		THREAD_POOL.execute(Replication::run);
 
