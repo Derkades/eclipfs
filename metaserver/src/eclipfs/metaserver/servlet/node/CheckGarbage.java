@@ -2,8 +2,6 @@ package eclipfs.metaserver.servlet.node;
 
 import java.io.IOException;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Optional;
 
@@ -13,6 +11,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonWriter;
 
 import eclipfs.metaserver.Database;
+import eclipfs.metaserver.model.Inode;
 import eclipfs.metaserver.model.Node;
 import eclipfs.metaserver.servlet.HttpUtil;
 import jakarta.servlet.http.HttpServlet;
@@ -31,27 +30,31 @@ public class CheckGarbage extends HttpServlet {
 				return;
 			}
 
-			final Node node = optNode.get();
+//			final Node node = optNode.get();
 
 			final JsonObject json = HttpUtil.readJsonFromRequestBody(request, response);
 			if (json == null) {
 				return;
 			}
 
-			final JsonArray chunks = json.getAsJsonArray("chunks");
+			final JsonArray files = json.getAsJsonArray("files");
 
 			try (JsonWriter writer = HttpUtil.getJsonWriter(response);
 					Connection conn = Database.getConnection()) {
 				writer.beginObject().name("garbage").beginArray();
-				for (final JsonElement e : chunks) {
-					try (final PreparedStatement query = conn.prepareStatement("SELECT node FROM chunk_node JOIN chunk ON chunk=id WHERE node=? AND token=?")) {
-						query.setLong(1, node.getId());
-						query.setString(2, e.getAsString());
-						final ResultSet result = query.executeQuery();
-						if (!result.next()) {
-							writer.value(e.getAsString());
-						}
+				for (final JsonElement e : files) {
+					final long fileId = e.getAsLong();
+					if (!Inode.isFile(fileId)) {
+						writer.value(fileId);
 					}
+//					try (final PreparedStatement query = conn.prepareStatement("SELECT node FROM chunk_node JOIN chunk ON chunk=id WHERE node=? AND token=?")) {
+//						query.setLong(1, node.getId());
+//						query.setString(2, e.getAsString());
+//						final ResultSet result = query.executeQuery();
+//						if (!result.next()) {
+//							writer.value(e.getAsString());
+//						}
+//					}
 				}
 				writer.endArray().endObject();
 			}

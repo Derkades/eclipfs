@@ -153,6 +153,22 @@ public abstract class Inode {
 		}
 	}
 
+	public static boolean isFile(final long inode) throws SQLException {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM inode WHERE id=? AND is_file = 'True'")) {
+			query.setLong(1, inode);
+			return query.executeQuery().next();
+		}
+	}
+
+	public static boolean isDirectory(final long inode) throws SQLException {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM inode WHERE id=? AND is_file = 'False'")) {
+			query.setLong(1, inode);
+			return query.executeQuery().next();
+		}
+	}
+
 	public static Optional<Inode> findByPath(final String path) throws SQLException, NotADirectoryException {
 		Validation.validatePath(path);
 		final String[] pathComponents = path.split("/");

@@ -20,4 +20,6 @@ public class Tunables {
 	public static final long REPLICATION_FAST_THRESHOLD = 500;
 	public static final int REPLICATION_ADD_AMOUNT = 1000;
 
+	public static final int NODE_TOKEN_LENGTH = 32;
+
 }

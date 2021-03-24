@@ -38,10 +38,11 @@ def announce():
         return (False, None, f'Status code {r.status_code}')
 
 
-def notify_chunk_uploaded(chunk_token, chunk_size):
+def notify_chunk_uploaded(inode, chunk_index, chunk_size):
     data = {
-        'chunk_token': chunk_token,
-        'chunk_size': chunk_size,
+        'file': inode,
+        'index': chunk_index,
+        'size': chunk_size,
     }
     r = requests.post(env['METASERVER_ADDRESS'] + '/node/notifyChunkUploaded', headers=HEADERS, json=data)
     if r.status_code == 200:

@@ -1,10 +1,19 @@
-version: '3'
+version: '3.2'
 
 services:
 
   postgres:
     build: ./database
-    volumes: ['/opt/dsn_db:/var/lib/postgresql/data']
+    volumes:
+      - type: bind
+        source: /opt/dsn_db
+        target: /var/lib/postgresql/data
+      - type: bind
+        source: postgres.conf
+        target: /etc/postgresql/postgresql.conf
+        read_only: true
     ports: ['127.0.0.1:5432:5432']
     environment:
       POSTGRES_PASSWORD: secure
+
+# SELECT id FROM chunk JOIN chunk_node ON id=chunk GROUP BY chunk.id HAVING COUNT(node) < $1 LIMIT $2

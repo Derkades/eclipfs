@@ -9,7 +9,6 @@ import java.util.Optional;
 
 import com.google.gson.JsonObject;
 
-import eclipfs.metaserver.exception.NodeNotFoundException;
 import eclipfs.metaserver.model.Node;
 import eclipfs.metaserver.model.OnlineNode;
 import eclipfs.metaserver.servlet.ApiError;
@@ -35,7 +34,7 @@ public class Announce extends HttpServlet {
 				return;
 			}
 
-			final String token = optNode.get().getFullToken();
+			final Node node = optNode.get();
 
 			final String version = HttpUtil.getJsonString(json, response, "version");
 			final URL address = HttpUtil.getJsonAddress(json, response, "address");
@@ -49,15 +48,11 @@ public class Announce extends HttpServlet {
 				return;
 			}
 
-			try {
-				OnlineNode.processNodeAnnounce(token, address, version, freeSpace, storageQuota);
-			} catch (final NodeNotFoundException e) {
-				throw new IllegalStateException("This is impossible, authentication check should have failed before if no node exists with this token", e);
-			}
+			OnlineNode.processNodeAnnounce(node, address, version, freeSpace, storageQuota);
 
 			// Try to make request back to node
 			try {
-				final HttpURLConnection connection = (HttpURLConnection) new URL(address, "/ping?node_token=" + token).openConnection();
+				final HttpURLConnection connection = (HttpURLConnection) new URL(address, "/ping?node_token=" + node.getToken()).openConnection();
 				connection.setConnectTimeout(500);
 				connection.setReadTimeout(500);
 				if (connection.getResponseCode() != 200) {

@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import org.apache.commons.lang.RandomStringUtils;
 import org.apache.commons.lang.Validate;
 
 import eclipfs.metaserver.Database;
@@ -57,12 +56,12 @@ public class File extends Inode {
 		synchronized(Chunk.class) {
 			Validate.isTrue(getChunk(index).isEmpty(), "Chunk already exists");
 			try (Connection conn = Database.getConnection();
-					PreparedStatement query = conn.prepareStatement("INSERT INTO \"chunk\" (index, size, file, checksum, token) VALUES (?,?,?,?,?) RETURNING *")) {
+					PreparedStatement query = conn.prepareStatement("INSERT INTO \"chunk\" (index, size, file, checksum) VALUES (?,?,?,?) RETURNING *")) {
 				query.setInt(1, index);
 				query.setLong(2, size);
 				query.setLong(3, this.getId());
 				query.setBytes(4, checksum);
-				query.setString(5, RandomStringUtils.randomAlphanumeric(128));
+//				query.setString(5, RandomStringUtils.randomAlphanumeric(128));
 				final ResultSet result = query.executeQuery();
 				result.next();
 				return new Chunk(this, result);

@@ -23,7 +23,7 @@ public enum ApiError {
 	IS_DELETED(13),
 	NODE_ADDRESS_UNREACHABLE(14),
 	CHUNK_NOT_EXISTS(15),
-	ORDER_NOT_EXISTS(16),
+//	ORDER_NOT_EXISTS(16),
 	FILE_DOWNLOAD_NODES_UNAVAILABLE(17),
 	IS_A_DIRECTORY(18),
 	FILE_ALREADY_EXISTS(19),
@@ -33,30 +33,30 @@ public enum ApiError {
 	IS_A_FILE(23),
 	NAME_ALREADY_EXISTS(24),
 	NAME_NOT_EXISTS(25),
-	
+
 	;
-	
+
 	private int errorCode;
 	private String description;
-	
+
 	ApiError(final int errorCode) {
 		this.errorCode = errorCode;
 		this.description = null;
 	}
-	
+
 	ApiError(final int errorCode, final String description) {
 		this.errorCode = errorCode;
 		this.description = description;
 	}
-	
+
 	public int getErrorCode() {
 		return this.errorCode;
 	}
-	
+
 	public void send(final ServletResponse response) throws IOException {
 		send(response, null);
 	}
-	
+
 	public void send(final ServletResponse response, final String info) throws IOException {
 		response.setContentType("application/json");
 		try (final JsonWriter writer = new JsonWriter(response.getWriter())) {
@@ -72,10 +72,10 @@ public enum ApiError {
 			writer.endObject();
 		}
 	}
-	
+
 	@Override
 	public String toString() {
 		return this.description == null ? this.name() : this.description;
 	}
-	
+
 }

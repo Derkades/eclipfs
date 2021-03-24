@@ -15,7 +15,7 @@ public class NodeCreateCommand extends Command {
 		final String location = args[1];
 		final Node node = Node.createNode(name, location);
 
-		System.out.println("Created new node '" + node.getFullToken() + "'");
+		System.out.println("Created new node '" + node.getToken() + "'");
 	}
 
 }

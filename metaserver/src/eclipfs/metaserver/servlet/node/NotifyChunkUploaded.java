@@ -8,6 +8,7 @@ import com.google.gson.JsonObject;
 
 import eclipfs.metaserver.Replication;
 import eclipfs.metaserver.model.Chunk;
+import eclipfs.metaserver.model.File;
 import eclipfs.metaserver.model.Node;
 import eclipfs.metaserver.servlet.ApiError;
 import eclipfs.metaserver.servlet.HttpUtil;
@@ -34,13 +35,16 @@ public class NotifyChunkUploaded extends HttpServlet {
 				return;
 			}
 
-			final String chunkToken = HttpUtil.getJsonString(json, response, "chunk_token");
-			final Long chunkSize = HttpUtil.getJsonLong(json, response, "chunk_size");
-			if (chunkToken == null || chunkSize == null) {
+//			final String chunkToken = HttpUtil.getJsonString(json, response, "chunk_token");
+			final File file = HttpUtil.getJsonFile(json, response);
+			final Long chunkIndex = HttpUtil.getJsonLong(json, response, "index");
+			final Long size = HttpUtil.getJsonLong(json, response, "size");
+			if (file == null || chunkIndex == null || size == null) {
 				return;
 			}
 
-			final Optional<Chunk> optChunk = Chunk.findByToken(chunkToken);
+//			final Optional<Chunk> optChunk = Chunk.findByToken(chunkToken);
+			final Optional<Chunk> optChunk = file.getChunk(chunkIndex.intValue());
 			if (optChunk.isEmpty()) {
 				ApiError.CHUNK_NOT_EXISTS.send(response);
 				return;
@@ -49,8 +53,8 @@ public class NotifyChunkUploaded extends HttpServlet {
 
 			chunk.getFile().setMtime(System.currentTimeMillis());
 
-			if (chunk.getSize() != chunkSize) {
-				ApiError.SIZE_MISMATCH.send(response, "expected " + chunk.getSize() + " got " + chunkSize);
+			if (chunk.getSize() != size) {
+				ApiError.SIZE_MISMATCH.send(response, "expected " + chunk.getSize() + " got " + size);
 				return;
 			}
 

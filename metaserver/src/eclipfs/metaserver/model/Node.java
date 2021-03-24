@@ -45,26 +45,20 @@ public class Node {
 		return this.id;
 	}
 
-	public String getFullToken() {
+	public String getToken() {
 		return this.token;
 	}
 
-	private String getReadToken() {
-		final String readToken = this.token.substring(0, 64);
-		return readToken;
-	}
-
-	private String getWriteToken() {
-		final String writeToken = this.token.substring(64);
-		return writeToken;
+	public String getReadOnlyToken() {
+		return this.token.substring(0, 16);
 	}
 
 	public String getToken(final TransferType transferType) {
 		Validate.notNull(transferType, "Transfer type is null");
 		if (transferType == TransferType.UPLOAD) {
-			return getWriteToken();
+			return getToken();
 		} else if (transferType == TransferType.DOWNLOAD) {
-			return getReadToken();
+			return getReadOnlyToken();
 		} else {
 			throw new IllegalStateException(transferType.name());
 		}
@@ -120,7 +114,8 @@ public class Node {
 		Validate.notNull(name, "Name is null");
 		Validate.notNull(location, "Location is null");
 
-		final String token = RandomStringUtils.randomAlphanumeric(128);
+//		final String token = RandomStringUtils.randomAlphanumeric(128);
+		final String token = RandomStringUtils.randomAlphanumeric(32);
 
 		try (Connection conn = Database.getConnection();
 				PreparedStatement query = conn.prepareStatement("INSERT INTO \"node\" (token, name, location) VALUES (?, ?, ?) RETURNING *")) {

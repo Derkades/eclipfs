@@ -10,6 +10,7 @@ from pathlib import Path
 from requests.exceptions import RequestException
 import requests
 import random
+import shutil
 
 
 app = Flask(__name__)
@@ -19,11 +20,12 @@ def verify_request_auth(typ):
     if 'node_token' not in request.args:
         abort(401, 'Missing node_token')
 
+    if len(env['TOKEN']) != 32:
+        raise Exception('Node token should be 32 characters long')
+
     if typ == 'read':
-        token = env['TOKEN'][:64]
+        token = env['TOKEN'][:16]
     elif typ == 'write':
-        token = env['TOKEN'][64:]
-    elif typ == 'full':
         token = env['TOKEN']
     else:
         raise Exception('invalid type argument')
@@ -32,32 +34,27 @@ def verify_request_auth(typ):
         abort(403, 'Invalid node_token')
 
 
-def get_chunk_path(chunk_token, mkdirs=False):
-    if len(chunk_token) != 128:
-        print('get_chunk_path fail: chunk token length is ', len(chunk_token))
-        return None
-    if '/' in chunk_token or '\\' in chunk_token or '.' in chunk_token:
-        print('get_chunk_path fail: contains invalid characters')
-        return None
+def get_chunk_path(inode, index, mkdirs=False):
     base = env['DATA_DIR']
-    dir_1 = chunk_token[:2]
-    dir_2 = chunk_token[2:4]
+    dir_1 = str(inode // 1000)
+    dir_2 = str(inode % 1000)
+    dirs = os.path.join(base, dir_1, dir_2)
     if mkdirs:
-        Path(os.path.join(base, dir_1, dir_2)).mkdir(parents=True, exist_ok=True)
-    file_name = chunk_token[4:]
-    return os.path.join(base, dir_1, dir_2, file_name)
+        Path(dirs).mkdir(parents=True, exist_ok=True)
+    return os.path.join(dirs, str(index) + '.efs')
 
 
-def read_chunk(chunk_token):
+def read_chunk(inode, index):
     """
     Read chunk data from local disk
 
     Parameters:
-        chunk_token: Chunk token
+        inode: File id / inode
+        index: Chunk index
     Returns:
         Chunk data, or None if the chunk does not exist locally
     """
-    path = get_chunk_path(chunk_token)
+    path = get_chunk_path(inode, index)
     if not path:
         return None
     print('path', path)
@@ -68,23 +65,21 @@ def read_chunk(chunk_token):
     return data
 
 
-def create_chunk(chunk_token, data):
+def create_chunk(inode, index, data):
     """
     Write chunk data to local disk, overwriting if the chunk already exists
 
     Parameters:
-        chunk_token: Chunk token
-        data: Chunk data
+        inode: File id / inode
+        index: Chunk index
     Returns:
         success boolean
     """
-    path = get_chunk_path(chunk_token, mkdirs=True)
+    path = get_chunk_path(inode, index, mkdirs=True)
     if not path:
         print('create_chunk fail, path is None')
         return False
-    # print('create_chunk: path exists:', os.path.exists(path))
-    # print('path', path)
-    # print('data length:', len(data))
+
     if len(data) > 1000000:
         print('create_chunk fail, data too large')
         return False
@@ -95,7 +90,7 @@ def create_chunk(chunk_token, data):
 
 @app.route('/ping', methods=['GET'])
 def ping():
-    verify_request_auth('full')
+    verify_request_auth('write')
     return Response(response='pong', content_type="text/plain")
 
 
@@ -103,8 +98,8 @@ def ping():
 def upload():
     verify_request_auth('write')
 
-    if 'chunk_token' not in request.args:
-        abort(400, 'Missing chunk_token')
+    if 'file' not in request.args or 'index' not in request.args:
+        abort(400, 'Missing file or index parameter')
 
     if request.content_type != 'application/octet-stream':
         abort(400, 'Request content type must be application/octet-stream')
@@ -112,36 +107,53 @@ def upload():
     if request.data == b'':
         abort(400, 'Request body is empty')
 
-    chunk_token = request.args['chunk_token']
+    inode = int(request.args['file'])
+    index = int(request.args['index'])
 
-    if not create_chunk(chunk_token, request.data):
+    if not create_chunk(inode, index, request.data):
         abort(500, 'Unable to write chunk data to file')
 
-    (success, response, error_message) = dsnapi.notify_chunk_uploaded(chunk_token, len(request.data))
+    (success, response, error_message) = dsnapi.notify_chunk_uploaded(inode, index, len(request.data))
     if success:
         return Response('ok', content_type='text/plain')
     else:
         # chunk is already written to disk and not accounted for on metaserver
-        # metaserver will try to replicate and garbage collection will remove the
-        # chunk from this chunkserver.
+        # it will stay on this node until the file is deleted, minor bug.
         print('error sending chunk upload notification to metaserver:', response, error_message)
         abort(500, 'Unable to send chunk upload notification to metaserver')
 
 
+@app.route('/download', methods=['GET'])
+def download():
+    verify_request_auth('read')
+
+    if 'file' not in request.args or 'index' not in request.args:
+        abort(400, 'Missing file or index parameter')
+
+    inode = int(request.args['file'])
+    index = int(request.args['index'])
+    data = read_chunk(inode, index)
+    if data is not None:
+        return Response(data, content_type='application/octet-stream')
+    else:
+        return abort(404, 'Chunk not found. Is the token valid and of the correct length?')
+
+
 @app.route('/replicate', methods=['POST'])
 def replicate():
-    verify_request_auth('full')
+    verify_request_auth('write')
 
-    if 'chunk_token' not in request.args:
-        abort(400, 'Missing chunk_token')
+    if 'file' not in request.args or 'index' not in request.args:
+        abort(400, 'Missing file or index parameter')
 
     if 'address' not in request.args:
         abort(400, 'Missing address')
 
-    chunk_token = request.args['chunk_token']
+    inode = int(request.args['file'])
+    index = int(request.args['index'])
+    data = read_chunk(inode, index)
 
-    data = read_chunk(chunk_token)
-    if not data:
+    if data is None:
         abort(404, 'Chunk not found. Is the token valid and of the correct length?')
 
     address = request.args['address']
@@ -150,20 +162,6 @@ def replicate():
         return Response('ok', content_type='text/plain')
     else:
         abort(500, r.text)
-
-
-@app.route('/download', methods=['GET'])
-def download():
-    verify_request_auth('read')
-
-    if 'chunk_token' not in request.args:
-        abort(400, 'Missing chunk_token')
-
-    data = read_chunk(request.args['chunk_token'])
-    if data:
-        return Response(data, content_type='application/octet-stream')
-    else:
-        return abort(404, 'Chunk not found. Is the token valid and of the correct length?')
 
 
 def announce():
@@ -189,76 +187,39 @@ def dir_empty(dir_path):
         return True
 
 
-def garbage_collect(count=500):
+def garbage_collect():
     base = env['DATA_DIR']
     subdirs = ls(base)
-    if len(subdirs) < count:
-        print('Skipping garbage collection, this node is not storing that much data.')
+    if len(subdirs) == 0:
+        print('Skipping garbage collection, this node is not storing any data.')
         return
 
-    directories = [os.path.join(base, choice) for choice in random.sample(subdirs, count)]
-    print(f'Starting garbage collection, scanning {count} dirs')
-    # print('Garbage collecting dirs', directories)
-    chunk_tokens = []
-    for directory1 in directories:
-        subdirs = ls(directory1)
-        if len(subdirs) == 0:
-            # print('directory empty, delete')
-            os.rmdir(os.path.join(base, directory1))
-        else:
-            for directory2 in subdirs:
-                subfiles = ls(os.path.join(directory1, directory2), is_file=True)
-                if len(subfiles) == 0:
-                    # print('directory empty, delete')
-                    os.rmdir(os.path.join(directory1, directory2))
-                else:
-                    for file2 in subfiles:
-                        token = os.path.basename(directory1) + directory2 + file2
-                        chunk_tokens.append(token)
+    chosen_dir = random.choice(subdirs)
+    print('Garbage collecting dir', chosen_dir)
 
-    print('Making request to metaserver')
-    # r = requests.get('/node/checkGarbage', headers=dsnapi.HEADERS, data={chunks: chunk_tokens})
-    (success, response, error_message) = dsnapi.get('checkGarbage', data={'chunks': chunk_tokens})
+    files = [int(d) for d in ls(os.path.join(base, chosen_dir))]
+
+    if len(files) == 0:
+        print('No files in directory')
+        return
+
+    print('Making request to metaserver', files)
+    (success, response, error_message) = dsnapi.get('checkGarbage', data={'files': files})
     if not success:
         print('garbage collection error', response, error_message)
         return
 
-    garbage_tokens = response['garbage']
-
-    print('Found garbage', len(garbage_tokens), '/', len(chunk_tokens), '- deleting now...')
-    deleted_files = 0
-    deleted_dirs = 0
-    for garbage_token in garbage_tokens:
-        path = get_chunk_path(garbage_token)
-        if not path:
-            # print('invalid', path)
-            pass
-        elif os.path.exists(path):
-            # print('delete', path)
-            os.remove(path)
-            deleted_files += 1
-            parent = Path(path).parent.absolute()
-            if dir_empty(parent):
-                parent2 = Path(parent).parent.absolute()
-                # print('delete parent')
-                os.rmdir(parent)
-                deleted_dirs += 1
-                if dir_empty(parent2):
-                    # print('delete parent2')
-                    os.rmdir(parent2)
-                    deleted_dirs += 1
-        else:
-            pass
-            # print('skip', path)
-
-    print(f'Done, deleted {deleted_files} files and {deleted_dirs} directories')
-
+    garbage = response['garbage']
+    for f in garbage:
+        path = os.path.join(base, chosen_dir, str(f))
+        print('Deleting', path)
+        shutil.rmtree(path)
 
 
 def timers():
     announce()
     schedule.every(7).to(9).seconds.do(announce)
-    schedule.every(30).to(60).seconds.do(garbage_collect)
+    schedule.every(300).to(600).seconds.do(garbage_collect)
     while True:
         schedule.run_pending()
         sleep(1)

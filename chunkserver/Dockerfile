@@ -10,4 +10,4 @@ ENV DATA_DIR "/data"
 
 ENV PYTHONUNBUFFERED=true
 
-CMD [ "gunicorn", "--access-logfile", "-", "--error-logfile", "-", "-b", "0.0.0.0:80", "node:app", "-c", "gunicorn-config.py", "--log-level", "debug"]
+CMD [ "gunicorn", "--access-logfile", "-", "--error-logfile", "-", "-b", "0.0.0.0:80", "node:app", "-c", "gunicorn-config.py", "--log-level", "info"]

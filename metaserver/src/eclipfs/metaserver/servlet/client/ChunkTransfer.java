@@ -117,7 +117,8 @@ public class ChunkTransfer extends HttpServlet {
 			final String address = node.getAddress() +
 					"/" + transferTypeString +
 					"?node_token=" + nodeToken +
-					"&chunk_token=" + chunk.getToken();
+					"&file=" + file.getId() +
+					"&index=" + chunk.getIndex();
 
 			// Sanity check on generated address
 			Validation.validateUrl(address);

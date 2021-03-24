@@ -33,7 +33,7 @@ public class NodeListCommand extends Command {
 					data[i][2] = node.getName();
 					data[i][3] = node.getAddress();
 					data[i][4] = Util.formatByteCount(node.getFreeSpace());
-					data[i][5] = node.getFullToken();
+					data[i][5] = node.getToken();
 				}
 
 				new TextTable(columns, data).printTable();
@@ -51,7 +51,7 @@ public class NodeListCommand extends Command {
 					data[i][0] = node.getId();
 					data[i][1] = node.getLocation();
 					data[i][2] = node.getName();
-					data[i][3] = node.getFullToken();
+					data[i][3] = node.getToken();
 				}
 
 				new TextTable(columns, data).printTable();

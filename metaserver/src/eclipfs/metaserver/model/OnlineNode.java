@@ -20,7 +20,6 @@ import org.apache.commons.lang3.Validate;
 import eclipfs.metaserver.TransferType;
 import eclipfs.metaserver.Tunables;
 import eclipfs.metaserver.Validation;
-import eclipfs.metaserver.exception.NodeNotFoundException;
 
 public class OnlineNode extends Node {
 
@@ -72,9 +71,17 @@ public class OnlineNode extends Node {
 	public boolean requestReplicate(final Chunk chunk, final OnlineNode target) throws IOException {
 		Validate.notNull(chunk, "Chunk is null");
 		Validate.notNull(target, "Target node is null");
-		final String targetAddress = target.getAddress() + "/upload?chunk_token=" + chunk.getToken() + "&node_token=" + target.getToken(TransferType.UPLOAD);
+		final String targetAddress = target.getAddress() + "/upload" +
+				"?file=" + chunk.getFile().getId() +
+				"&index=" + chunk.getIndex() +
+				"&node_token=" + target.getToken(TransferType.UPLOAD);
 		Validation.validateUrl(targetAddress);
-		final HttpURLConnection connection = (HttpURLConnection) new URL(this.getAddress() + "/replicate?chunk_token=" + chunk.getToken() + "&node_token=" + this.getFullToken() + "&address=" + URLEncoder.encode(targetAddress, StandardCharsets.UTF_8)).openConnection();
+		final String replicateSourceAddress = this.getAddress() + "/replicate" +
+				"?file=" + chunk.getFile().getId() +
+				"&index=" + chunk.getIndex() +
+				"&node_token=" + this.getToken() +
+				"&address=" + URLEncoder.encode(targetAddress, StandardCharsets.UTF_8);
+		final HttpURLConnection connection = (HttpURLConnection) new URL(replicateSourceAddress).openConnection();
 		connection.setRequestMethod("POST");
 		if (connection.getResponseCode() == 200) {
 			return true;
@@ -85,40 +92,34 @@ public class OnlineNode extends Node {
 		}
 	}
 
-	public static void processNodeAnnounce(final String token, final URL address,
-			final String version, final long freeSpace, final long storageQuota) throws SQLException, NodeNotFoundException {
-		Validate.notNull(token, "Token is null");
+	public static void processNodeAnnounce(final Node node, final URL address,
+			final String version, final long freeSpace, final long storageQuota) throws SQLException {
+		Validate.notNull(node, "Node is null");
 		Validate.notNull(version, "Version is null");
 		Validate.notNull(address, "Address is null");
 		Validate.inclusiveBetween(0, Long.MAX_VALUE, freeSpace, "Free space must be >= 0");
 		Validate.inclusiveBetween(0, Long.MAX_VALUE, storageQuota, "Storage quota must be >= 0");
 		synchronized(NODE_LOCK) {
-			if (BY_TOKEN.containsKey(token)) {
+			if (BY_TOKEN.containsKey(node.getToken())) {
 				// Node exists
-				final OnlineNode node = BY_TOKEN.get(token);
-				node.lastAnnounce = System.currentTimeMillis();
-				node.address = address;
-				node.version = version;
-				node.freeSpace = freeSpace;
-				node.storageQuota = storageQuota;
+				final OnlineNode online = BY_TOKEN.get(node.getToken());
+				online.lastAnnounce = System.currentTimeMillis();
+				online.address = address;
+				online.version = version;
+				online.freeSpace = freeSpace;
+				online.storageQuota = storageQuota;
 			} else {
 				// New node
-				final Optional<Node> optNode = Node.byToken(token);
+				final OnlineNode online = new OnlineNode(node);
+				online.lastAnnounce = System.currentTimeMillis();
+				online.address = address;
+				online.version = version;
+				online.freeSpace = freeSpace;
+				online.storageQuota = storageQuota;
 
-				if (optNode.isEmpty()) {
-					throw new NodeNotFoundException("Could not find node by token '" + token + "'");
-				}
-
-				final OnlineNode node = new OnlineNode(optNode.get());
-				node.lastAnnounce = System.currentTimeMillis();
-				node.address = address;
-				node.version = version;
-				node.freeSpace = freeSpace;
-				node.storageQuota = storageQuota;
-
-				ONLINE_NODES.add(node);
-				BY_ID.put(node.getId(), node);
-				BY_TOKEN.put(token, node);
+				ONLINE_NODES.add(online);
+				BY_ID.put(node.getId(), online);
+				BY_TOKEN.put(node.getToken(), online);
 			}
 		}
 	}
@@ -127,7 +128,7 @@ public class OnlineNode extends Node {
 		Validate.notNull(node);
 		ONLINE_NODES.remove(node);
 		BY_ID.remove(node.getId());
-		BY_TOKEN.remove(node.getFullToken());
+		BY_TOKEN.remove(node.getToken());
 	}
 
 	private static void pruneNodes() {

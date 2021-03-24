@@ -34,7 +34,7 @@ public class Dashboard extends HttpServlet {
 			writer.print("<meta charset=\"utf-8\">");
 			writer.print("<title>eclipfs dashboard</title>");
 			writer.print("<link rel=\"stylesheet\" href=\"/bootstrap.min.css\">");
-			writer.print("<meta http-equiv=\"refresh\" content=\"5;url=.\">");
+			writer.print("<meta http-equiv=\"refresh\" content=\"10;url=.\">");
 			writer.print("</head>");
 			writer.print("<body>");
 			writer.print("<div class=\"container\">");
@@ -98,8 +98,8 @@ public class Dashboard extends HttpServlet {
 			}
 			final ConnectionStatistics stats = MetaServer.getHttpServer().getStatistics();
 			writer.print("<span class=\"text-muted\">");
-			writer.print("Page render took " + (System.currentTimeMillis() - start) + " ms. ");
-			writer.print("Connections: " + stats.getConnections() + " / " + stats.getConnectionsTotal() + ".");
+			writer.print("Dashboard render took " + (System.currentTimeMillis() - start) + " ms. ");
+			writer.print("Connections: " + stats.getConnections() + " / " + stats.getConnectionsTotal() + ". ");
 			writer.print("Traffic: " + Util.formatByteCount(stats.getSentBytes()) + " sent / " + Util.formatByteCount(stats.getReceivedBytes()) + " received.");
 			writer.print("</span>");
 			writer.print("</div>");

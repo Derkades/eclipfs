@@ -20,7 +20,7 @@ public class Chunk {
 	private final int index;
 	private long size;
 	private final byte[] checksum;
-	private final String token;
+//	private final String token;
 
 	private transient final File file;
 
@@ -32,7 +32,7 @@ public class Chunk {
 		this.size = result.getLong("size");
 		Validate.isTrue(result.getLong("file") == file.getId());
 		this.checksum = result.getBytes("checksum");
-		this.token = result.getString("token");
+//		this.token = result.getString("token");
 		this.file = file;
 	}
 
@@ -70,9 +70,9 @@ public class Chunk {
 		return new String(Hex.encode(this.getChecksum()));
 	}
 
-	public String getToken() {
-		return this.token;
-	}
+//	public String getToken() {
+//		return this.token;
+//	}
 
 	public List<Long> getNodeIds() throws SQLException {
 		try (Connection conn = Database.getConnection();
@@ -138,7 +138,6 @@ public class Chunk {
 				query.execute();
 			}
 		}
-
 	}
 
 	public static Optional<Chunk> byId(final long id) throws SQLException {
@@ -159,25 +158,25 @@ public class Chunk {
 		}
 	}
 
-	public static Optional<Chunk> findByToken(final String chunkToken) throws SQLException {
-		Validate.notNull(chunkToken, "Chunk token is null");
-
-		try (Connection conn = Database.getConnection();
-				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"chunk\" WHERE token=?")) {
-			query.setString(1, chunkToken);
-			final ResultSet result = query.executeQuery();
-			if (result.next()) {
-				final long fileId = result.getLong("file");
-				final Optional<Inode> optFile = Inode.byId(fileId);
-				if (optFile.isEmpty()) {
-					throw new IllegalStateException("Orphan chunk: file no longer exists. File id: " + fileId);
-				}
-				return Optional.of(new Chunk((File) optFile.get(), result));
-			} else {
-				return Optional.empty();
-			}
-		}
-	}
+//	public static Optional<Chunk> findByToken(final String chunkToken) throws SQLException {
+//		Validate.notNull(chunkToken, "Chunk token is null");
+//
+//		try (Connection conn = Database.getConnection();
+//				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"chunk\" WHERE token=?")) {
+//			query.setString(1, chunkToken);
+//			final ResultSet result = query.executeQuery();
+//			if (result.next()) {
+//				final long fileId = result.getLong("file");
+//				final Optional<Inode> optFile = Inode.byId(fileId);
+//				if (optFile.isEmpty()) {
+//					throw new IllegalStateException("Orphan chunk: file no longer exists. File id: " + fileId);
+//				}
+//				return Optional.of(new Chunk((File) optFile.get(), result));
+//			} else {
+//				return Optional.empty();
+//			}
+//		}
+//	}
 
 //	@Deprecated
 //	public long calculateExceptedSize() {
