@@ -81,10 +81,10 @@ public class JettyManager {
 		final ServerConnector connector = new ServerConnector(this.server);
 		connector.setPort(port);
 		this.server.addConnector(connector);
-		final RequestLog.Writer writer = new Slf4jRequestLogWriter();
-		final RequestLog requestLog = new CustomRequestLog(writer, CustomRequestLog.NCSA_FORMAT);
+		final Slf4jRequestLogWriter writer = new Slf4jRequestLogWriter();
+		writer.setLoggerName("HTTP");
+		final RequestLog requestLog = new CustomRequestLog(writer, "%{ms}Tms %{client}a %r %s %O ");
 		this.server.setRequestLog(requestLog);
-
 		connector.addBean(this.stats);
 	}
 
