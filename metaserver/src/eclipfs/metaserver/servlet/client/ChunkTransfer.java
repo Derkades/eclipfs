@@ -67,6 +67,8 @@ public class ChunkTransfer extends HttpServlet {
 			Chunk chunk;
 			final Optional<Chunk> optChunk = file.getChunk(chunkIndex.intValue());
 
+			boolean removeFromNodes = false;
+
 			if (transferType == TransferType.UPLOAD) {
 				if (optChunk.isPresent()) {
 					chunk = optChunk.get();
@@ -78,7 +80,12 @@ public class ChunkTransfer extends HttpServlet {
 					}
 					chunk.updateChecksum(Hex.decode(checksum));
 					chunk.updateSize(size);
-//					method = "update";
+					// Transfer type 'UPLOAD' can mean uploading a new chunk, but can also mean
+					// overwriting an existing chunk. The existing chunk may be replicated on several nodes
+					// it will only be updated on one. Remove the chunk from all nodes, before allowing  the client
+					// to upload it to one node so there are no inconsistencies.
+					// defer until after some api error checks so if this api call failes the chunks are not removed
+					removeFromNodes = true;
 				} else {
 					final String checksum = HttpUtil.getJsonString(json, response, "checksum");
 					final Long size = HttpUtil.getJsonLong(json, response, "size");
@@ -111,6 +118,10 @@ public class ChunkTransfer extends HttpServlet {
 			}
 
 			final OnlineNode node = optNode.get();
+
+			if (removeFromNodes) {
+				chunk.removeAllNodes();
+			}
 
 			final String nodeToken = node.getToken(transferType);
 

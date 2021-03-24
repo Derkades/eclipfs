@@ -156,7 +156,7 @@ class Operations(pyfuse3.Operations):
                         break
 
                 # mark the chunk we just uploaded as not modified (functioning as read cache)
-                print('upload successful')
+                print('upload successful', chunk_data_size)
                 self.cursor.execute("UPDATE chunk_cache SET modified = 'False' WHERE inode=? AND chunk_index=?", (inode, chunk_index))
 
                 try:
@@ -643,7 +643,7 @@ class Operations(pyfuse3.Operations):
             chunk_data = chunks_data[(chunk_index-start_chunk)*config.CHUNKSIZE:(chunk_index-start_chunk+1)*config.CHUNKSIZE]
             # print('put data in cache after write -', 'inode', fh, 'chunk_index', chunk_index, 'len(chunk_data)', len(chunk_data))
             # set modified = True so the write buffer clear function knows it needs to upload it
-            query = "INSERT INTO chunk_cache (inode, chunk_index, data, last_update, modified) VALUES (?,?,?,?,'True') ON CONFLICT(inode, chunk_index) DO UPDATE SET data=?, last_update=?"
+            query = "INSERT INTO chunk_cache (inode, chunk_index, data, last_update, modified) VALUES (?,?,?,?,'True') ON CONFLICT(inode, chunk_index) DO UPDATE SET data=?, last_update=?, modified='True'"
             self.cursor.execute(query, (fh, chunk_index, chunk_data, int(time.time()), chunk_data, int(time.time())))
 
         self.cache_lock.release()

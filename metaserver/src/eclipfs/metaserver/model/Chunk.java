@@ -122,21 +122,19 @@ public class Chunk {
 
 	public void addNode(final Node node) throws SQLException {
 		Validate.notNull(node, "Node is null");
-		try (Connection conn = Database.getConnection()){
-			try (PreparedStatement query = conn.prepareStatement("SELECT node FROM chunk_node WHERE node=? AND chunk=?")) {
-				query.setLong(1, node.getId());
-				query.setLong(2, this.getId());
-				if (query.executeQuery().next()) {
-					System.out.println("Ignoring addnode, node already has chunk");
-					return;
-				}
-			}
+		try (Connection conn = Database.getConnection();
+			PreparedStatement query = conn.prepareStatement("INSERT INTO chunk_node(chunk, node) VALUES (?, ?) ON CONFLICT(chunk, node) DO NOTHING")) {
+			query.setLong(1, this.getId());
+			query.setLong(2, node.getId());
+			query.execute();
+		}
+	}
 
-			try (PreparedStatement query = conn.prepareStatement("INSERT INTO chunk_node(chunk, node) VALUES (?, ?)")) {
-				query.setLong(1, this.getId());
-				query.setLong(2, node.getId());
-				query.execute();
-			}
+	public void removeAllNodes() throws SQLException {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("DELETE FROM chunk_node WHERE chunk=?")){
+			query.setLong(1, this.getId());
+			query.execute();
 		}
 	}
 
