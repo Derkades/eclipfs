@@ -88,8 +88,8 @@ class Operations(pyfuse3.Operations):
 
 
     def _clear_write_buffer(self, force=False):
-        if force:
-            print('force clear write buffer')
+        # if force:
+        #     print('force clear write buffer')
 
         self.cache_lock.acquire()
 
@@ -118,12 +118,12 @@ class Operations(pyfuse3.Operations):
 
                 assert len(chunk_data) == len(chunk_data_encrypted)
 
-                print('clearing write buffer, making chunkTransfer request', inode, chunk_index, chunk_data_checksum, chunk_data_size, inode)
+                # print('clearing write buffer, making chunkUploadInit request', 'inode', inode, 'chunk_index', chunk_index, 'size', chunk_data_size)
 
                 request_data = {
                     'file': inode,
                     'chunk': chunk_index,
-                    'type': 'upload',
+                    # 'type': 'upload',
                     'checksum': chunk_data_checksum,
                     'size': chunk_data_size
                 }
@@ -131,29 +131,71 @@ class Operations(pyfuse3.Operations):
                 if config.PREFERRED_LOCATION:
                     request_data['location'] = config.PREFERRED_LOCATION
 
-                (success, response) = api.post('chunkTransfer', data=request_data)
+                (success, response) = api.post('chunkUploadInit', data=request_data)
 
                 if success:
-                    url = response['url']
-                    try:
-                        r = requests.post(url, data=chunk_data_encrypted, headers={'Content-Type':'application/octet-stream'})
-                    except RequestException:
-                        print('Failed to connect to node')
+                    # print('ChunkUploadInit request successful, uploading chunk to all chunkservers...', response)
+                    temp_id = response['id']
+                    success_node_ids = []
+                    nodes = response['nodes']
+                    if len(nodes) == 0:
+                        print('FAIL nodes empty')
                         failure = True
                         break
 
-                    if r.status_code != 200:
-                        print('FAILED TO UPLOAD CHUNK status code', r.status_code)
-                        failure = True
-                        break
-
-                else: # not success
+                    for node in response['nodes']:
+                        upload_address = node['address']
+                        try:
+                            r = requests.post(upload_address, data=chunk_data_encrypted, headers={'Content-Type':'application/octet-stream'})
+                            if r.status_code == 200:
+                                success_node_ids.append(node['id'])
+                                print('Successfully uploaded to node', node['id'])
+                            else:
+                                print('Http status code', r.status_code, 'node', node, r.text)
+                        except RequestException:
+                            print('Failed to connect to', node)
+                            # failure = True
+                            # break
+                else: # not successful
                     if response == 2: # file not exists
                         print('Failed to transfer chunk, file no longer exists. Ignoring.')
                     else:
-                        print('FAILED TO REQUEST CHUNK TRANSFER', inode, chunk_index)
+                        print('FAILED chunkUploadInit', response)
                         failure = True
                         break
+
+                if len(success_node_ids) == 0:
+                    print('FAILED TO UPLOAD CHUNK success node ids empty')
+                    failure = True
+                    break
+
+                # print('Making chunk upload finalize request')
+                request_data = {
+                    'id': temp_id,
+                    'nodes': success_node_ids,
+                }
+                (success, response) = api.post('chunkUploadFinalize', data=request_data)
+                if success:
+                    print('Uploaded chunk successfully!')
+                else:
+                    if response == 2: # file not exists
+                        print('Failed to transfer chunk, file no longer exists. Ignoring.')
+                    else:
+                        print('FAILED chunkUploadFinalize', response)
+                        failure = True
+                        break
+                    # if r.status_code != 200:
+                    #     print('FAILED TO UPLOAD CHUNK status code', r.status_code)
+                    #     failure = True
+                    #     break
+
+                # else: # not success
+                #     if response == 2: # file not exists
+                #         print('Failed to transfer chunk, file no longer exists. Ignoring.')
+                #     else:
+                #         print('FAILED TO REQUEST CHUNK TRANSFER', inode, chunk_index)
+                #         failure = True
+                #         break
 
                 # mark the chunk we just uploaded as not modified (functioning as read cache)
                 print('upload successful', chunk_data_size)
@@ -517,12 +559,18 @@ class Operations(pyfuse3.Operations):
         Returns:
             (None, chunk_data)
             ('apierror', error code)
-            ('checksum', length of downloaded data)
+            ('chunkservererror', http response)
+            ('checksum', downloaded data)
         """
         # print('_download_chunk', inode, chunk_index)
 
         # Remove outdated entries from chunk cache. Only remove non-modified entries, modified entries still need to be uploaded!
         self.cursor.execute("DELETE FROM chunk_cache WHERE modified = 'False' AND last_update < ?", (int(time.time()) - config.READ_CACHE_TIME,))
+
+        # print('cache', int(time.time()) - config.READ_CACHE_TIME)
+        # self.cursor.execute('SELECT inode,chunk_index,modified,last_update FROM chunk_cache')
+        # for row in self.cursor:
+            # print(row['inode'], row['chunk_index'], row['modified'], row['last_update'])
 
         try:
             # Try to find chunk in read cache
@@ -531,34 +579,37 @@ class Operations(pyfuse3.Operations):
             # self.read_cache_lock.release()
             return None, chunk_data
         except NoSuchRowError:
-            print('Chunk data not in cache for chunk index, need to download.', chunk_index)
+            # print('Chunk data not in cache for chunk index, need to download.', chunk_index)
             request_data = {
                 'file': inode,
                 'chunk': chunk_index,
-                'type': 'download'
+                # 'type': 'download'
             }
             if config.PREFERRED_LOCATION:
                 request_data['location'] = config.PREFERRED_LOCATION
 
-            (success, response) = api.post('chunkTransfer', data=request_data)
+            (success, response) = api.post('chunkDownload', data=request_data)
             if not success:
                 return 'apierror', response
 
             download_url = response['url']
             checksum = response['checksum']
             node_response = api.get_requests_session().get(download_url) # make request to node
-            chunk_data_encrypted = node_response.content
-            print('download finished')
-            if hashlib.md5(chunk_data_encrypted).hexdigest() == checksum:
-                print('checksum valid! size of downloaded data:', len(chunk_data_encrypted))
-                chunk_data = self._get_cipher(inode, chunk_index).decrypt(chunk_data_encrypted)
+            if node_response.status_code == 200:
+                chunk_data_encrypted = node_response.content
+                # print('download finished')
+                if hashlib.md5(chunk_data_encrypted).hexdigest() == checksum:
+                    print('Download finished, checksum valid! size of downloaded data:', len(chunk_data_encrypted))
+                    chunk_data = self._get_cipher(inode, chunk_index).decrypt(chunk_data_encrypted)
 
-                # there should never be a conflict here, if there was we would've returned data from the read cache instead of downloading it
-                self.cursor.execute("INSERT INTO chunk_cache (inode, chunk_index, data, last_update, modified) VALUES (?,?,?,?,'False')", (inode, chunk_index, chunk_data, int(time.time())))
-                return None, chunk_data
+                    # there should never be a conflict here, if there was we would've returned data from the read cache instead of downloading it
+                    self.cursor.execute("INSERT INTO chunk_cache (inode, chunk_index, data, last_update, modified) VALUES (?,?,?,?,'False')", (inode, chunk_index, chunk_data, int(time.time())))
+                    return None, chunk_data
+                else:
+                    print('Download finished, checksum INVALID')
+                    return 'checksum', chunk_data_encrypted
             else:
-                print('checksum invalid')
-                return 'checksum', len(chunk_data_encrypted)
+                return 'chunkservererror', node_response.content
 
 
     async def read(self, fh, offset, length):
@@ -580,9 +631,14 @@ class Operations(pyfuse3.Operations):
                 self.cache_lock.release()
                 raise(FUSEError(errno.EREMOTEIO))
             elif error == 'checksum':
-                print('Checksum error while downloading chunk, size of downloaded data was', data)
+                print('Checksum error while downloading chunk, size of downloaded data was', len(data))
+                if len(data) < 300:
+                    print('data:', data)
                 self.cache_lock.release()
                 raise(FUSEError(errno.EREMOTEIO))
+            elif error == 'chunkservererror':
+                print('Chunk server non-200 HTTP response code while downloading data')
+                print(data.decode())
             else:
                 raise(Exception('Unknown error while downloading'))
 

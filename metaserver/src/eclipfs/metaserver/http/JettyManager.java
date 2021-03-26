@@ -17,8 +17,10 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.util.resource.Resource;
 
 import eclipfs.metaserver.MetaServer;
+import eclipfs.metaserver.servlet.client.ChunkDownload;
 import eclipfs.metaserver.servlet.client.ChunkInfo;
-import eclipfs.metaserver.servlet.client.ChunkTransfer;
+import eclipfs.metaserver.servlet.client.ChunkUploadFinalize;
+import eclipfs.metaserver.servlet.client.ChunkUploadInit;
 import eclipfs.metaserver.servlet.client.DirectoryCreate;
 import eclipfs.metaserver.servlet.client.FileCreate;
 import eclipfs.metaserver.servlet.client.GetEncryptionKey;
@@ -28,7 +30,6 @@ import eclipfs.metaserver.servlet.client.InodeMove;
 import eclipfs.metaserver.servlet.dashboard.Dashboard;
 import eclipfs.metaserver.servlet.node.Announce;
 import eclipfs.metaserver.servlet.node.CheckGarbage;
-import eclipfs.metaserver.servlet.node.NotifyChunkUploaded;
 
 public class JettyManager {
 
@@ -39,8 +40,10 @@ public class JettyManager {
 	public JettyManager(final int port) throws MalformedURLException, SQLException, URISyntaxException {
 		final ServletContextHandler clientApiContext = new ServletContextHandler();
 		clientApiContext.setContextPath("/client");
+		clientApiContext.addServlet(ChunkDownload.class, "/chunkDownload");
 		clientApiContext.addServlet(ChunkInfo.class, "/chunkInfo");
-		clientApiContext.addServlet(ChunkTransfer.class, "/chunkTransfer");
+		clientApiContext.addServlet(ChunkUploadFinalize.class, "/chunkUploadFinalize");
+		clientApiContext.addServlet(ChunkUploadInit.class, "/chunkUploadInit");
 		clientApiContext.addServlet(DirectoryCreate.class, "/directoryCreate");
 		clientApiContext.addServlet(FileCreate.class, "/fileCreate");
 		clientApiContext.addServlet(GetEncryptionKey.class, "/getEncryptionKey");
@@ -53,7 +56,7 @@ public class JettyManager {
 		nodeApiContext.setContextPath("/node");
 		nodeApiContext.addServlet(Announce.class, "/announce");
 		nodeApiContext.addServlet(CheckGarbage.class, "/checkGarbage");
-		nodeApiContext.addServlet(NotifyChunkUploaded.class, "/notifyChunkUploaded");
+//		nodeApiContext.addServlet(NotifyChunkUploaded.class, "/notifyChunkUploaded");
 		nodeApiContext.setServer(this.server);
 
 		final ServletContextHandler dashboardContext = new ServletContextHandler();

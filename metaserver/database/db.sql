@@ -34,11 +34,21 @@ ALTER SEQUENCE "inode_id_seq" RESTART WITH 2;
 
 CREATE TABLE "chunk" (
   "id" serial PRIMARY KEY,
+  "file" serial NOT NULL REFERENCES "inode"("id") ON DELETE CASCADE,
   "index" int NOT NULL,
   "size" bigint NOT NULL,
-  "file" serial NOT NULL REFERENCES "inode"("id") ON DELETE CASCADE,
   "checksum" bytea NOT NULL,
   -- "token" text NOT NULL UNIQUE,
+  UNIQUE("index", "file")
+);
+
+CREATE TABLE "chunk_writing" (
+  "id" serial PRIMARY KEY,
+  "file" bigint NOT NULL,
+  "index" int NOT NULL,
+  "size" bigint NOT NULL,
+  "checksum" bytea NOT NULL,
+  "time" bigint NOT NULL,
   UNIQUE("index", "file")
 );
 

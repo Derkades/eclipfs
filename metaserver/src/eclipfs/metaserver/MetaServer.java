@@ -6,14 +6,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.commons.lang.Validate;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
 import org.jline.reader.UserInterruptException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import eclipfs.metaserver.command.ChangeDirectoryCommand;
 import eclipfs.metaserver.command.Command;
@@ -36,7 +36,7 @@ public class MetaServer {
 
 	public static Directory WORKING_DIRECTORY;
 
-	public static final Logger LOGGER = Logger.getGlobal();
+	public static final Logger LOGGER = LoggerFactory.getLogger("Metaserver");
 	private static final Map<String, Command> COMMANDS = new HashMap<>();
 
 	private static final ExecutorService THREAD_POOL = Executors.newCachedThreadPool();
@@ -66,16 +66,12 @@ public class MetaServer {
 		Validate.notEmpty(key, "Environment variable ENCRYPTION_KEY is not set or empty");
 		Validate.isTrue(key.length() >= 32, "Encryption password must be at least 32 characters");
 		if (key.length() > 32) {
-			System.err.println("Encryption key is longer than 32 characters. Please note that any characters after 32 are ignored.");
+			LOGGER.warn("Encryption key is longer than 32 characters. Please note that any characters after 32 are ignored.");
 		}
 		ENCRYPTION_KEY = key.substring(0, 32);
 	}
 
 	public static void main(final String[] args) throws Exception {
-		if (!DEBUG) {
-			LOGGER.setLevel(Level.WARNING);
-		}
-
 		WORKING_DIRECTORY = Inode.getRootInode();
 
 		httpServer = new JettyManager(7779); // TODO configurable port

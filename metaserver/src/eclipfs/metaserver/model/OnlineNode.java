@@ -1,6 +1,8 @@
 package eclipfs.metaserver.model;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -17,6 +19,9 @@ import java.util.Optional;
 
 import org.apache.commons.lang3.Validate;
 
+import com.google.gson.stream.JsonWriter;
+
+import eclipfs.metaserver.MetaServer;
 import eclipfs.metaserver.TransferType;
 import eclipfs.metaserver.Tunables;
 import eclipfs.metaserver.Validation;
@@ -86,10 +91,41 @@ public class OnlineNode extends Node {
 		if (connection.getResponseCode() == 200) {
 			return true;
 		} else {
-			final byte[] bResponse = connection.getErrorStream().readAllBytes();
-			final String response = new String(bResponse, StandardCharsets.UTF_8);
-			throw new IOException("Received response code " + connection.getResponseCode() + " when trying to replicate chunk\n" + response);
+//			final byte[] bResponse = connection.getErrorStream().readAllBytes();
+//			final String response = new String(bResponse, StandardCharsets.UTF_8);
+//			throw new IOException("Received response code " + connection.getResponseCode() + " when trying to replicate chunk\n" + response);
+			return false;
 		}
+	}
+
+	public boolean finalizeUpload(final long tempId, final long chunkId) throws IOException {
+		final HttpURLConnection connection = (HttpURLConnection) new URL(this.getAddress() + "/finalize").openConnection();
+		connection.setRequestMethod("POST");
+//		final JsonObject body = new JsonObject();
+//		body.addProperty();
+//		body.addProperty();
+		connection.addRequestProperty("Content-Type", "application/json");
+		connection.setDoOutput(true);
+		try (JsonWriter writer = new JsonWriter(new OutputStreamWriter(connection.getOutputStream()))) {
+			writer.beginObject();
+			writer.name("temp_id").value(tempId);
+			writer.name("chunk_id").value(chunkId);
+			writer.endObject();
+		}
+//		connection.getOutputStream().write(StandardCharsets.UTF_8.encode(body.toString()).array());
+		if (connection.getResponseCode() == 200) {
+			return true;
+		} else {
+			MetaServer.LOGGER.error("Response code " + connection.getResponseCode() + " while trying to finalize a chunk upload");
+			MetaServer.LOGGER.error(readStream(connection.getErrorStream()));
+			return false;
+		}
+	}
+
+	private static String readStream(final InputStream stream) throws IOException {
+		final byte[] bResponse = stream.readAllBytes();
+		final String response = new String(bResponse, StandardCharsets.UTF_8);
+		return response;
 	}
 
 	public static void processNodeAnnounce(final Node node, final URL address,

@@ -7,7 +7,7 @@ services:
     ports: [8000:80]
     volumes: ['/opt/chunkserver1:/data']
     environment:
-      TOKEN: bBo360JlzS7iZ4F85gGi5Fazbb2JGCjm
+      TOKEN: uOSrCMZRKuvkiSHOPQmiBsLc0kzVftlL
       METASERVER_ADDRESS: http://10.0.0.124:7779
       OWN_ADDRESS: 'http://10.0.0.124:8000'
       RESERVATION: 50
@@ -17,6 +17,6 @@ services:
     ports: [8001:80]
     volumes: ['/opt/chunkserver2:/data']
     environment:
-      TOKEN: h2el2rNZszQ4DaoqFMILvbyW8MJfFj6G
+      TOKEN: RxSKMtCM95hdsLyq6W7KsWuqLkucA6mM
       METASERVER_ADDRESS: http://10.0.0.124:7779
       OWN_ADDRESS: 'http://10.0.0.124:8001'

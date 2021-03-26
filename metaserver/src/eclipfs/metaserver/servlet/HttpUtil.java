@@ -198,6 +198,24 @@ public class HttpUtil {
 		}
 	}
 
+	public static long[] getJsonLongArray(final JsonObject json, final HttpServletResponse response, final String memberName) throws IOException {
+		Validate.notNull(json);
+		Validate.notNull(memberName);
+		Validate.notNull(response);
+		if (!json.has(memberName) ||
+				!json.get(memberName).isJsonArray()) {
+			sendBadRequest(response, "Missing or invalid json member '" + memberName + "'");
+			return null;
+		} else {
+			final JsonArray jsonArray = json.get(memberName).getAsJsonArray();
+			final long[] array = new long[jsonArray.size()];
+			for (int i = 0; i < array.length; i++) {
+				array[i] = jsonArray.get(i).getAsLong();
+			}
+			return array;
+		}
+	}
+
 	public static Inode getJsonInode(final JsonObject json, final HttpServletResponse response) throws SQLException, IOException {
 		if (json.has("inode")) {
 			return longToInode(response, getJsonLong(json, response, "inode"));

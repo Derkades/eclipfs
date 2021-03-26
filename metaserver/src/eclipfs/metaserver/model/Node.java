@@ -92,6 +92,15 @@ public class Node {
 		}
 	}
 
+	public boolean hasChunk(final long chunkId) throws SQLException {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"chunk_node\" WHERE chunk=? AND node=?")) {
+			query.setLong(1, chunkId);
+			query.setLong(2, this.getId());
+			return query.executeQuery().next();
+		}
+	}
+
 	@Override
 	public boolean equals(final Object other) {
 		return other != null && other instanceof Node && ((Node) other).getId() == this.getId();

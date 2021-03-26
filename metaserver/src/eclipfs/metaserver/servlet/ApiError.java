@@ -11,8 +11,8 @@ public enum ApiError {
 	DIRECTORY_NOT_EXISTS(1),
 	FILE_NOT_EXISTS(2),
 //	DIRECT_UPLOAD_FILE_DISTRIBUTED(3),
-	DIRECT_UPLOAD_FILE_INVALID_SIZE(4),
-	FILE_ALREADY_UPLOADED(5),
+//	DIRECT_UPLOAD_FILE_INVALID_SIZE(4),
+//	FILE_ALREADY_UPLOADED(5),
 	DIRECTORY_ALREADY_EXISTS(6),
 	INVALID_FILE_DIRECTORY_NAME(7),
 //	MISSING_READ_ACCESS(8),
@@ -20,7 +20,7 @@ public enum ApiError {
 	DIRECTORY_NOT_EMPTY(10),
 	TEMPORARY_NODE_SHORTAGE(11),
 	DESTINATION_EXISTS(12),
-	IS_DELETED(13),
+//	IS_DELETED(13),
 	NODE_ADDRESS_UNREACHABLE(14),
 	CHUNK_NOT_EXISTS(15),
 //	ORDER_NOT_EXISTS(16),
@@ -33,6 +33,9 @@ public enum ApiError {
 	IS_A_FILE(23),
 	NAME_ALREADY_EXISTS(24),
 	NAME_NOT_EXISTS(25),
+	NOT_ENOUGH_NODES_SPECIFIED(26),
+	WRITING_CHUNK_NOT_EXISTS(27),
+	UPLOAD_FINALIZE_FAILED(28),
 
 	;
 
@@ -75,7 +78,7 @@ public enum ApiError {
 
 	@Override
 	public String toString() {
-		return this.description == null ? this.name() : this.description;
+		return this.name() + (this.description == null ? "" : (" - " + this.description));
 	}
 
 }

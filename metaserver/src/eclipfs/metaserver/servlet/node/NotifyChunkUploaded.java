@@ -7,7 +7,6 @@ import java.util.Optional;
 import com.google.gson.JsonObject;
 
 import eclipfs.metaserver.model.Chunk;
-import eclipfs.metaserver.model.File;
 import eclipfs.metaserver.model.Node;
 import eclipfs.metaserver.servlet.ApiError;
 import eclipfs.metaserver.servlet.HttpUtil;
@@ -15,6 +14,7 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+@Deprecated
 public class NotifyChunkUploaded extends HttpServlet {
 
 	private static final long serialVersionUID = 1L;
@@ -35,15 +35,17 @@ public class NotifyChunkUploaded extends HttpServlet {
 			}
 
 //			final String chunkToken = HttpUtil.getJsonString(json, response, "chunk_token");
-			final File file = HttpUtil.getJsonFile(json, response);
-			final Long chunkIndex = HttpUtil.getJsonLong(json, response, "index");
+//			final File file = HttpUtil.getJsonFile(json, response);
+//			final Long chunkIndex = HttpUtil.getJsonLong(json, response, "index");
+			final Long chunkId = HttpUtil.getJsonLong(json, response, "chunk");
 			final Long size = HttpUtil.getJsonLong(json, response, "size");
-			if (file == null || chunkIndex == null || size == null) {
+			if (chunkId == null ||size == null) {
 				return;
 			}
 
 //			final Optional<Chunk> optChunk = Chunk.findByToken(chunkToken);
-			final Optional<Chunk> optChunk = file.getChunk(chunkIndex.intValue());
+//			final Optional<Chunk> optChunk = file.getChunk(chunkIndex.intValue());
+			final Optional<Chunk> optChunk = Chunk.byId(chunkId);
 			if (optChunk.isEmpty()) {
 				ApiError.CHUNK_NOT_EXISTS.send(response);
 				return;
@@ -58,6 +60,8 @@ public class NotifyChunkUploaded extends HttpServlet {
 			}
 
 			chunk.addNode(node);
+
+			System.out.println("ADD NODE TO CHUNK " + chunk.getId());
 
 //			Replication.addToCheckQueue(chunk);
 

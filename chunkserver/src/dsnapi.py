@@ -12,7 +12,7 @@ def announce():
 
     reservation = int(env['RESERVATION']) * 1_000_000_000 if 'RESERVATION' in env else 0
     new_free = abs(free - reservation)
-    print(f'Free space: {free/1_000_000_000} GB - {int(reservation/1_000_000_000)} GB = {new_free/1_000_000_000} GB')
+    # print(f'Free space: {free/1_000_000_000} GB - {int(reservation/1_000_000_000)} GB = {new_free/1_000_000_000} GB')
 
     data = {
         'version': 'dev',
@@ -38,26 +38,25 @@ def announce():
         return (False, None, f'Status code {r.status_code}')
 
 
-def notify_chunk_uploaded(inode, chunk_index, chunk_size):
-    data = {
-        'file': inode,
-        'index': chunk_index,
-        'size': chunk_size,
-    }
-    r = requests.post(env['METASERVER_ADDRESS'] + '/node/notifyChunkUploaded', headers=HEADERS, json=data)
-    if r.status_code == 200:
-        try:
-            json = r.json()
-        except jsonlib.JSONDecodeError:
-            return (False, None, 'Json decode error for ' + r.text)
+# def notify_chunk_uploaded(chunk_id, chunk_size):
+#     data = {
+#         'chunk': chunk_id,
+#         'size': chunk_size,
+#     }
+#     r = requests.post(env['METASERVER_ADDRESS'] + '/node/notifyChunkUploaded', headers=HEADERS, json=data)
+#     if r.status_code == 200:
+#         try:
+#             json = r.json()
+#         except jsonlib.JSONDecodeError:
+#             return (False, None, 'Json decode error for ' + r.text)
 
-        if 'error' in json:
-            error_code = json['error']
-            return (False, error_code, json['error_message'] if 'error_message' in json else 'No error message available')
-        else:
-            return (True, json, None)
-    else:
-        return (False, None, f'Status code {r.status_code} - ' + str(r.content))
+#         if 'error' in json:
+#             error_code = json['error']
+#             return (False, error_code, json['error_message'] if 'error_message' in json else 'No error message available')
+#         else:
+#             return (True, json, None)
+#     else:
+#         return (False, None, f'Status code {r.status_code} - ' + str(r.content))
 
 
 def get(method, data):

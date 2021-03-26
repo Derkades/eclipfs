@@ -48,23 +48,29 @@ public class File extends Inode {
 		}
 	}
 
-	public Chunk createChunk(final int index, final byte[] checksum, final long size) throws SQLException {
+	public WritingChunk createChunk(final int index, final byte[] checksum, final long size) throws SQLException {
 		Validate.isTrue(index >= 0, "Chunk index must be positive");
 		Validate.notNull(checksum);
 
 		// Do not create multiple chunks at the same time
 		synchronized(Chunk.class) {
-			Validate.isTrue(getChunk(index).isEmpty(), "Chunk already exists");
+//			Validate.isTrue(getChunk(index).isEmpty(), "Chunk already exists");
 			try (Connection conn = Database.getConnection();
-					PreparedStatement query = conn.prepareStatement("INSERT INTO \"chunk\" (index, size, file, checksum) VALUES (?,?,?,?) RETURNING *")) {
-				query.setInt(1, index);
-				query.setLong(2, size);
-				query.setLong(3, this.getId());
+					PreparedStatement query = conn.prepareStatement(
+							"INSERT INTO \"chunk_writing\""
+							+ "(file, index, size, checksum, time) VALUES (?,?,?,?,?) "
+							+ "ON CONFLICT(file, index) DO UPDATE SET time=? "
+							+ "RETURNING *")) {
+				query.setLong(1, this.getId());
+				query.setInt(2, index);
+				query.setLong(3, size);
 				query.setBytes(4, checksum);
+				query.setLong(5, System.currentTimeMillis() / 1000);
+				query.setLong(6, System.currentTimeMillis() / 1000);
 //				query.setString(5, RandomStringUtils.randomAlphanumeric(128));
 				final ResultSet result = query.executeQuery();
 				result.next();
-				return new Chunk(this, result);
+				return new WritingChunk(this, result);
 			}
 		}
 	}
@@ -82,6 +88,28 @@ public class File extends Inode {
 			} else {
 				return Optional.empty();
 			}
+		}
+	}
+
+	public void deleteChunk(final int index) throws SQLException {
+		Validate.isTrue(index >= 0, "Chunk index must be positive");
+
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("DELETE FROM \"chunk\" WHERE file=? AND index=?")) {
+			query.setLong(1, this.getId());
+			query.setInt(2, index);
+			query.execute();
+		}
+	}
+
+	public boolean hasChunk(final int index) throws SQLException {
+		Validate.isTrue(index >= 0, "Chunk index must be positive");
+
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT id FROM \"chunk\" WHERE file=? AND index=?")) {
+			query.setLong(1, this.getId());
+			query.setInt(2, index);
+			return query.executeQuery().next();
 		}
 	}
 

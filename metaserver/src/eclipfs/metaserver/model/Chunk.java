@@ -96,30 +96,31 @@ public class Chunk {
 	}
 
 	public List<OnlineNode> getOnlineNodes() throws SQLException {
+		System.out.println(getNodeIds());
 		return getNodeIds().stream()
 				.map(OnlineNode::getOnlineNodeById)
 				.filter(Optional::isPresent).map(Optional::get)
 				.collect(Collectors.toUnmodifiableList());
 	}
 
-	public void updateChecksum(final byte[] checksum) throws SQLException {
-		try (Connection conn = Database.getConnection();
-				PreparedStatement query = conn.prepareStatement("UPDATE \"chunk\" SET checksum=? WHERE id=?")){
-			query.setBytes(1, checksum);
-			query.setLong(2, this.getId());
-			query.execute();
-		}
-	}
-
-	public void updateSize(final long size) throws SQLException {
-		try (Connection conn = Database.getConnection();
-				PreparedStatement query = conn.prepareStatement("UPDATE \"chunk\" SET size=? WHERE id=?")){
-			query.setLong(1, size);
-			query.setLong(2, this.getId());
-			query.execute();
-		}
-	}
-
+//	public void updateChecksum(final byte[] checksum) throws SQLException {
+//		try (Connection conn = Database.getConnection();
+//				PreparedStatement query = conn.prepareStatement("UPDATE \"chunk\" SET checksum=? WHERE id=?")){
+//			query.setBytes(1, checksum);
+//			query.setLong(2, this.getId());
+//			query.execute();
+//		}
+//	}
+//
+//	public void updateSize(final long size) throws SQLException {
+//		try (Connection conn = Database.getConnection();
+//				PreparedStatement query = conn.prepareStatement("UPDATE \"chunk\" SET size=? WHERE id=?")){
+//			query.setLong(1, size);
+//			query.setLong(2, this.getId());
+//			query.execute();
+//		}
+//	}
+//
 	public void addNode(final Node node) throws SQLException {
 		Validate.notNull(node, "Node is null");
 		try (Connection conn = Database.getConnection();
@@ -129,16 +130,16 @@ public class Chunk {
 			query.execute();
 		}
 	}
+//
+//	public void removeAllNodes() throws SQLException {
+//		try (Connection conn = Database.getConnection();
+//				PreparedStatement query = conn.prepareStatement("DELETE FROM chunk_node WHERE chunk=?")){
+//			query.setLong(1, this.getId());
+//			query.execute();
+//		}
+//	}
 
-	public void removeAllNodes() throws SQLException {
-		try (Connection conn = Database.getConnection();
-				PreparedStatement query = conn.prepareStatement("DELETE FROM chunk_node WHERE chunk=?")){
-			query.setLong(1, this.getId());
-			query.execute();
-		}
-	}
-
-	public static Optional<Chunk> byId(final long id) throws SQLException {
+	public synchronized static Optional<Chunk> byId(final long id) throws SQLException {
 		try (Connection conn = Database.getConnection();
 				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"chunk\" WHERE id=?")) {
 			query.setLong(1, id);
@@ -153,6 +154,14 @@ public class Chunk {
 			} else {
 				return Optional.empty();
 			}
+		}
+	}
+
+	public static boolean exists(final long id) throws SQLException {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"chunk\" WHERE id=?")) {
+			query.setLong(1, id);
+			return query.executeQuery().next();
 		}
 	}
 

@@ -11,7 +11,6 @@ import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonWriter;
 
 import eclipfs.metaserver.Database;
-import eclipfs.metaserver.model.Inode;
 import eclipfs.metaserver.model.Node;
 import eclipfs.metaserver.servlet.HttpUtil;
 import jakarta.servlet.http.HttpServlet;
@@ -30,31 +29,23 @@ public class CheckGarbage extends HttpServlet {
 				return;
 			}
 
-//			final Node node = optNode.get();
+			final Node node = optNode.get();
 
 			final JsonObject json = HttpUtil.readJsonFromRequestBody(request, response);
 			if (json == null) {
 				return;
 			}
 
-			final JsonArray files = json.getAsJsonArray("files");
+			final JsonArray chunks = json.getAsJsonArray("chunks");
 
 			try (JsonWriter writer = HttpUtil.getJsonWriter(response);
 					Connection conn = Database.getConnection()) {
 				writer.beginObject().name("garbage").beginArray();
-				for (final JsonElement e : files) {
-					final long fileId = e.getAsLong();
-					if (!Inode.isFile(fileId)) {
-						writer.value(fileId);
+				for (final JsonElement e : chunks) {
+					final long chunkId = e.getAsLong();
+					if (!node.hasChunk(chunkId)) {
+						writer.value(chunkId);
 					}
-//					try (final PreparedStatement query = conn.prepareStatement("SELECT node FROM chunk_node JOIN chunk ON chunk=id WHERE node=? AND token=?")) {
-//						query.setLong(1, node.getId());
-//						query.setString(2, e.getAsString());
-//						final ResultSet result = query.executeQuery();
-//						if (!result.next()) {
-//							writer.value(e.getAsString());
-//						}
-//					}
 				}
 				writer.endArray().endObject();
 			}
