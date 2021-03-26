@@ -6,7 +6,7 @@
 	<artifactId>metaserver</artifactId>
 	<version>dev</version>
 
-	<name>dsn_metaserver</name>
+	<name>eclipfs</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
