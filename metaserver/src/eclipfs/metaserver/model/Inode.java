@@ -9,7 +9,6 @@ import java.util.Optional;
 import org.apache.commons.lang.Validate;
 
 import eclipfs.metaserver.Database;
-import eclipfs.metaserver.Util;
 import eclipfs.metaserver.Validation;
 import eclipfs.metaserver.exception.AlreadyExistsException;
 import eclipfs.metaserver.exception.NotADirectoryException;
@@ -66,10 +65,6 @@ public abstract class Inode {
 
 	public final long getMtime() {
 		return this.mtime;
-	}
-
-	public String getFormattedSize() throws SQLException {
-		return Util.formatByteCount(this.getSize());
 	}
 
 	public synchronized final void setMtime(final long mtime) throws SQLException {

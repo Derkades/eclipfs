@@ -10,7 +10,6 @@ import org.eclipse.jetty.io.ConnectionStatistics;
 
 import eclipfs.metaserver.MetaServer;
 import eclipfs.metaserver.Replication;
-import eclipfs.metaserver.Util;
 import eclipfs.metaserver.model.Inode;
 import eclipfs.metaserver.model.Node;
 import eclipfs.metaserver.model.OnlineNode;
@@ -18,6 +17,7 @@ import eclipfs.metaserver.model.User;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import xyz.derkades.derkutils.StringFormatUtils;
 
 public class Dashboard extends HttpServlet {
 
@@ -53,14 +53,14 @@ public class Dashboard extends HttpServlet {
 					if (online.isPresent()) {
 						data[row][3] = "yes";
 						data[row][4] = online.get().getAddress();
-						data[row][5] = Util.formatByteCount(online.get().getFreeSpace());
+						data[row][5] = StringFormatUtils.formatByteCount(online.get().getFreeSpace());
 					} else {
 						data[row][3] = "no";
 						data[row][4] = "-";
 						data[row][5] = "-";
 					}
 					data[row][6] = node.getStoredChunkCount();
-					data[row][7] = Util.formatByteCount(node.getStoredChunkSize());
+					data[row][7] = StringFormatUtils.formatByteCount(node.getStoredChunkSize());
 					row++;
 				}
 				writeTable(writer, columns, data);
@@ -100,7 +100,7 @@ public class Dashboard extends HttpServlet {
 			writer.print("<span class=\"text-muted\">");
 			writer.print("Dashboard render took " + (System.currentTimeMillis() - start) + " ms. ");
 			writer.print("Connections: " + stats.getConnections() + " / " + stats.getConnectionsTotal() + ". ");
-			writer.print("Traffic: " + Util.formatByteCount(stats.getSentBytes()) + " sent / " + Util.formatByteCount(stats.getReceivedBytes()) + " received.");
+			writer.print("Traffic: " + StringFormatUtils.formatByteCount(stats.getSentBytes()) + " sent / " + StringFormatUtils.formatByteCount(stats.getReceivedBytes()) + " received.");
 			writer.print("</span>");
 			writer.print("</div>");
 			writer.print("</body>");
