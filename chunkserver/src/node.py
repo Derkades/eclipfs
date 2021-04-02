@@ -12,6 +12,8 @@ import requests
 import random
 import shutil
 import threading
+import hashlib
+# import binascii
 
 
 app = Flask(__name__)
@@ -208,26 +210,47 @@ def replicate():
     if 'chunk' not in request.args:
         abort(400, "Missing 'chunk' parameter")
 
+    if 'checksum' not in request.args:
+        abort(400, "Missing 'checksum' parameter")
+
     if 'address' not in request.args:
         abort(400, 'Missing address')
 
     # inode = int(request.args['file'])
     # index = int(request.args['index'])
     chunk_id = int(request.args['chunk'])
-
-    fs_lock.acquire()
-    data = read_chunk(chunk_id)
-    fs_lock.release()
-
-    if data is None:
-        abort(404, 'Chunk not found. Is the token valid and of the correct length?')
-
+    checksum = request.args['checksum']
     address = request.args['address']
-    r = requests.post(address, headers={'Content-Type': 'application/octet-stream'}, data=data)
-    if r.status_code == 200:
-        return Response('ok', content_type='text/plain')
-    else:
-        abort(500, r.text)
+
+    # fs_lock.acquire()
+    # data = read_chunk(chunk_id)
+    # fs_lock.release()
+
+    # if data is None:
+    #     abort(404, 'Chunk not found. Is the token valid and of the correct length?')
+
+
+    try:
+        r = requests.post(address, headers={'Content-Type': 'application/octet-stream'})
+        if r.status_code == 200:
+            data = r.content
+            if hashlib.md5(data).hexdigest() != checksum:
+                abort(500, 'Checksum mismatch', checksum, 'data len', len(data))
+
+            fs_lock.acquire()
+            path = get_chunk_path(chunk_id, mkdirs=True)
+
+            print('replication - writing to', path)
+            with open(path, 'wb') as file:
+                file.write(data)
+
+            fs_lock.release()
+
+            return Response('ok', content_type='text/plain')
+        else:
+            abort(500, r.text)
+    except RequestException as e:
+        abort(500, (address, e))
 
 
 def announce():

@@ -2,8 +2,10 @@ package eclipfs.metaserver.http;
 
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.sql.SQLException;
 
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jetty.io.ConnectionStatistics;
 import org.eclipse.jetty.server.CustomRequestLog;
 import org.eclipse.jetty.server.RequestLog;
@@ -70,7 +72,11 @@ public class JettyManager {
 		final ServletHolder holderPwd = new ServletHolder("default", DefaultServlet.class);
 		rootContext.addServlet(holderPwd, "/");
 		rootContext.setWelcomeFiles(new String[] { "index.html" });
-		rootContext.setBaseResource(Resource.newResource(MetaServer.class.getResource("/web/styles.css").toURI().resolve("./").normalize()));
+		final String dir = "/web";
+		final String someFile = "/styles.css";
+		final URL randomFileUrl = MetaServer.class.getResource(dir + someFile);
+		final Resource baseResource = Resource.newResource(new URL(StringUtils.removeEnd(randomFileUrl.toString(), someFile)));
+		rootContext.setBaseResource(baseResource);
 		rootContext.setServer(this.server);
 
 		final ContextHandlerCollection list = new ContextHandlerCollection();

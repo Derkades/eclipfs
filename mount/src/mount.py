@@ -95,7 +95,7 @@ class Operations(pyfuse3.Operations):
 
         num_entries = self._get_row("SELECT COUNT(*) FROM chunk_cache WHERE modified = 'True'")[0]
         # print('Write buffer contains', num_entries, 'entries')
-        if force and num_entries == 0 or not force and num_entries < 5:
+        if force and num_entries == 0 or not force and num_entries < config.MAX_WRITE_BUFFER_SIZE:
             self.cache_lock.release()
             return
 
@@ -291,7 +291,7 @@ class Operations(pyfuse3.Operations):
             fh += 1
 
         self.dir_handles[fh] = Inode.by_inode(inode)
-        print('opendir', inode, fh)
+        # print('opendir', inode, fh)
         return fh
 
 

@@ -1,12 +1,12 @@
 package eclipfs.metaserver.model;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStreamWriter;
-import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
+import java.net.http.HttpRequest;
+import java.net.http.HttpRequest.BodyPublishers;
+import java.net.http.HttpResponse;
+import java.net.http.HttpResponse.BodyHandlers;
 import java.sql.SQLException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -18,13 +18,14 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.apache.commons.lang3.Validate;
+import org.slf4j.Logger;
 
-import com.google.gson.stream.JsonWriter;
+import com.google.gson.JsonObject;
 
 import eclipfs.metaserver.MetaServer;
 import eclipfs.metaserver.TransferType;
 import eclipfs.metaserver.Tunables;
-import eclipfs.metaserver.Validation;
+import xyz.derkades.derkutils.UriBuilder;
 
 public class OnlineNode extends Node {
 
@@ -73,59 +74,76 @@ public class OnlineNode extends Node {
 		return this.storageQuota;
 	}
 
-	public boolean requestReplicate(final Chunk chunk, final OnlineNode target) throws IOException {
+	public boolean requestReplicate(final Chunk chunk, final OnlineNode source, final Logger logger) {
 		Validate.notNull(chunk, "Chunk is null");
-		Validate.notNull(target, "Target node is null");
-		final String targetAddress = target.getAddress() + "/upload" +
-				"?file=" + chunk.getFile().getId() +
-				"&index=" + chunk.getIndex() +
-				"&node_token=" + target.getToken(TransferType.UPLOAD);
-		Validation.validateUrl(targetAddress);
-		final String replicateSourceAddress = this.getAddress() + "/replicate" +
-				"?file=" + chunk.getFile().getId() +
-				"&index=" + chunk.getIndex() +
-				"&node_token=" + this.getToken() +
-				"&address=" + URLEncoder.encode(targetAddress, StandardCharsets.UTF_8);
-		final HttpURLConnection connection = (HttpURLConnection) new URL(replicateSourceAddress).openConnection();
-		connection.setRequestMethod("POST");
-		if (connection.getResponseCode() == 200) {
-			return true;
-		} else {
-//			final byte[] bResponse = connection.getErrorStream().readAllBytes();
-//			final String response = new String(bResponse, StandardCharsets.UTF_8);
-//			throw new IOException("Received response code " + connection.getResponseCode() + " when trying to replicate chunk\n" + response);
+		Validate.notNull(source, "Source node is null");
+
+		try {
+			final String sourceAddress = new UriBuilder(source.getAddress())
+					.slash("download")
+					.param("chunk", String.valueOf(chunk.getId()))
+					.param("node_token", source.getToken(TransferType.DOWNLOAD))
+					.toString();
+
+			final URI uri = new UriBuilder(this.getAddress())
+					.slash("replicate")
+					.param("chunk", String.valueOf(chunk.getId()))
+					.param("checksum", chunk.getChecksumHex())
+					.param("node_token", this.getToken())
+					.param("address", sourceAddress)
+					.build();
+
+
+			final HttpRequest request = HttpRequest.newBuilder(uri).POST(BodyPublishers.noBody()).build();
+			final HttpResponse<String> response = MetaServer.getHttpClient().send(request, BodyHandlers.ofString());
+			if (response.statusCode() == 200) {
+				return true;
+			} else {
+				logger.warn("Received response code %s", response.statusCode());
+				logger.warn("Address: %s", this.address);
+				if (response.body().length() < 1000) {
+					logger.warn("Response: %s", response.body());
+				} else {
+					logger.warn("Response is too long to print");
+				}
+				return false;
+			}
+		} catch (final IOException | InterruptedException e) {
+			logger.warn("Error", e);
+			logger.warn("Address: %s", this.address);
 			return false;
 		}
 	}
 
-	public boolean finalizeUpload(final long tempId, final long chunkId) throws IOException {
-		final HttpURLConnection connection = (HttpURLConnection) new URL(this.getAddress() + "/finalize").openConnection();
-		connection.setRequestMethod("POST");
-//		final JsonObject body = new JsonObject();
-//		body.addProperty();
-//		body.addProperty();
-		connection.addRequestProperty("Content-Type", "application/json");
-		connection.setDoOutput(true);
-		try (JsonWriter writer = new JsonWriter(new OutputStreamWriter(connection.getOutputStream()))) {
-			writer.beginObject();
-			writer.name("temp_id").value(tempId);
-			writer.name("chunk_id").value(chunkId);
-			writer.endObject();
-		}
-//		connection.getOutputStream().write(StandardCharsets.UTF_8.encode(body.toString()).array());
-		if (connection.getResponseCode() == 200) {
-			return true;
-		} else {
-			MetaServer.LOGGER.error("Response code " + connection.getResponseCode() + " while trying to finalize a chunk upload");
-			MetaServer.LOGGER.error(readStream(connection.getErrorStream()));
+	public boolean finalizeUpload(final long tempId, final long chunkId, final Logger logger) throws IOException {
+		final URI uri = new UriBuilder(this.getAddress()).slash("finalize").build();
+
+		final JsonObject json = new JsonObject();
+		json.addProperty("temp_id", tempId);
+		json.addProperty("chunk_id", chunkId);
+
+		final HttpRequest request = HttpRequest.newBuilder(uri)
+				.header("Content-Type", "application/json")
+				.POST(BodyPublishers.ofString(json.toString()))
+				.build();
+
+		try {
+			final HttpResponse<String> response = MetaServer.getHttpClient().send(request, BodyHandlers.ofString());
+			if (response.statusCode() == 200) {
+				return true;
+			} else {
+				logger.error("Response code " + response.statusCode() + " while trying to finalize a chunk upload");
+				if (response.body().length() < 1000) {
+					logger.warn("Response: %s", response.body());
+				} else {
+					logger.warn("Response is too long to print");
+				}
+				return false;
+			}
+		} catch (IOException | InterruptedException e) {
+			logger.error("Error during request", e);
 			return false;
 		}
-	}
-
-	private static String readStream(final InputStream stream) throws IOException {
-		final byte[] bResponse = stream.readAllBytes();
-		final String response = new String(bResponse, StandardCharsets.UTF_8);
-		return response;
 	}
 
 	public static void processNodeAnnounce(final Node node, final URL address,

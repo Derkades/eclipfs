@@ -1,6 +1,5 @@
 package eclipfs.metaserver;
 
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -60,8 +59,6 @@ public class Replication {
 	}
 
 	static void run() {
-
-
 		while(true) {
 			try {
 				Thread.sleep(fast ? Tunables.REPLICATION_FAST_DELAY : Tunables.REPLICATION_SLOW_DELAY);
@@ -121,17 +118,8 @@ public class Replication {
 				}
 
 				final OnlineNode replicationSource = optReplicationSource.get();
-				try {
-					if (replicationSource.requestReplicate(chunk, replicationTarget)) {
-						LOGGER.info("Successfully replicated chunk.");
-					} else {
-						LOGGER.warn("Error while replicating chunk");
-						continue;
-					}
-				} catch (final IOException e) {
-					e.printStackTrace();
-					LOGGER.warn("Error while replicating chunk " + e.getClass().getSimpleName() + " " + e.getMessage());
-					continue;
+				if (replicationTarget.requestReplicate(chunk, replicationSource, LOGGER)) {
+					LOGGER.info("Successfully replicated chunk.");
 				}
 			} catch (final Exception e) {
 				e.printStackTrace();

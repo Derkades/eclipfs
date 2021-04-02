@@ -6,6 +6,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.google.gson.JsonObject;
 
 import eclipfs.metaserver.model.Chunk;
@@ -20,6 +23,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 public class ChunkUploadFinalize extends HttpServlet {
+
+	private static final Logger LOGGER = LoggerFactory.getLogger("http - chunk upload finalize");
 
 	private static final long serialVersionUID = 1L;
 
@@ -78,7 +83,7 @@ public class ChunkUploadFinalize extends HttpServlet {
 			boolean success = false;
 			for (final OnlineNode node : nodes) {
 //				System.out.println(writing.getId() + " " + chunk.getId());
-				if (node.finalizeUpload(writing.getId(), chunk.getId())) {
+				if (node.finalizeUpload(writing.getId(), chunk.getId(), LOGGER)) {
 //					successfulNodes.add(node);
 					chunk.addNode(node);
 					success = true;
