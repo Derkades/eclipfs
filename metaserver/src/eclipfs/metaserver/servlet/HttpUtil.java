@@ -7,7 +7,7 @@ import java.net.URL;
 import java.sql.SQLException;
 import java.util.Optional;
 
-import org.apache.commons.lang.Validate;
+import org.apache.commons.lang3.Validate;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;

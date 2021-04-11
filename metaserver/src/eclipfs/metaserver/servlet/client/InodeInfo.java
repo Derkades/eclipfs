@@ -3,7 +3,7 @@ package eclipfs.metaserver.servlet.client;
 import java.io.IOException;
 import java.sql.SQLException;
 
-import org.apache.commons.lang.Validate;
+import org.apache.commons.lang3.Validate;
 
 import com.google.gson.stream.JsonWriter;
 
