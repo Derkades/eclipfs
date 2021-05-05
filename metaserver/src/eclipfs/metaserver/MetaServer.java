@@ -1,13 +1,20 @@
 package eclipfs.metaserver;
 
 import java.net.http.HttpClient;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.KeySpec;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 
 import org.apache.commons.lang3.Validate;
 import org.jline.reader.EndOfFileException;
@@ -40,17 +47,6 @@ public class MetaServer {
 
 	public static final Logger LOGGER = LoggerFactory.getLogger("Metaserver");
 	private static final Map<String, Command> COMMANDS = new HashMap<>();
-
-	private static final ExecutorService THREAD_POOL = Executors.newCachedThreadPool();
-
-	public static final boolean DEBUG = true;
-
-	private static final String ENCRYPTION_KEY;
-
-	private static JettyManager httpServer;
-
-	private static PasswordChecker passwordChecker = new PasswordChecker();
-
 	static {
 		COMMANDS.put("cd", new ChangeDirectoryCommand());
 		COMMANDS.put("del", new DeleteCommand());
@@ -63,14 +59,41 @@ public class MetaServer {
 		COMMANDS.put("up", new UpCommand());
 		COMMANDS.put("useradd", new UserAddCommand());
 		COMMANDS.put("userlist", new UserListCommand());
+	}
 
-		final String key = System.getenv("ENCRYPTION_KEY");
-		Validate.notEmpty(key, "Environment variable ENCRYPTION_KEY is not set or empty");
-		Validate.isTrue(key.length() >= 32, "Encryption password must be at least 32 characters");
-		if (key.length() > 32) {
-			LOGGER.warn("Encryption key is longer than 32 characters. Please note that any characters after 32 are ignored.");
+	private static final ExecutorService THREAD_POOL = Executors.newCachedThreadPool();
+
+	public static final boolean DEBUG = true;
+
+	private static final String ENCRYPTION_KEY_ENCODED;
+
+	private static JettyManager httpServer;
+
+	private static PasswordChecker passwordChecker = new PasswordChecker();
+
+	// These must never be changed or existing encrypted data will become inaccessible
+	private static final byte[] PBKDF2_SALT = "1N8Dx]#%O6)d.ezyGTeIHi)Z=v+rH7|{c.^yOy52>[(<[Lnmb~<}\\d`0.**)tt%H".getBytes();
+	private static final int PBKDF2_ITER = 100000;
+
+	static {
+		String keyString = System.getenv("ENCRYPTION_KEY");
+		if (keyString == null || keyString.equals("")) {
+			LOGGER.warn("ENCRYPTION_KEY is not set or blank. If this is a production installation, set this variable immediately before uploading any files.");
+			keyString = "this is an insecure password";
 		}
-		ENCRYPTION_KEY = key.substring(0, 32);
+
+		// Convert human friendly password to a 32-byte key for AES
+
+		final KeySpec spec = new PBEKeySpec(keyString.toCharArray(), PBKDF2_SALT, PBKDF2_ITER, 256);
+		final byte[] key;
+		try {
+			final SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+			key = factory.generateSecret(spec).getEncoded();
+		} catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+			throw new RuntimeException(e);
+		}
+		Validate.isTrue(key.length == 32);
+		ENCRYPTION_KEY_ENCODED = Base64.getEncoder().encodeToString(key);
 	}
 
 	public static void main(final String[] args) throws Exception {
@@ -128,8 +151,8 @@ public class MetaServer {
 		return httpServer;
 	}
 
-	public static String getEncryptionKey() {
-		return ENCRYPTION_KEY;
+	public static String getEncryptionKeyBase64() {
+		return ENCRYPTION_KEY_ENCODED;
 	}
 
 	public static PasswordChecker getPasswordChecker() {

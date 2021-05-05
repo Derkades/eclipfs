@@ -25,7 +25,7 @@ public class GetEncryptionKey extends HttpServlet {
 			try (JsonWriter writer = new JsonWriter(response.getWriter())) {
 				writer.beginObject();
 				writer.name("key");
-				writer.value(MetaServer.getEncryptionKey());
+				writer.value(MetaServer.getEncryptionKeyBase64());
 				writer.endObject();
 			}
 		} catch (final SQLException e) {
