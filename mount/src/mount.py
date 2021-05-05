@@ -92,20 +92,27 @@ class Operations(pyfuse3.Operations):
         return AES.new(key, AES.MODE_CFB, iv)
 
 
-    def _clear_write_buffer(self, force=False):
-        # if force:
-        #     print('force clear write buffer')
+    def _should_process_buffer(self, force):
+        num_entries = self._get_row("SELECT COUNT(*) FROM chunk_cache WHERE modified = 'True'")[0]
+        log.debug('Write buffer entries: %s', num_entries)
+        result = force and num_entries > 0 or not force and num_entries >= config.MAX_WRITE_BUFFER_SIZE
+        log.debug('Should process buffer with %s entries force=%s? %s', num_entries, force, result)
+        return result
 
+
+
+    def _clear_write_buffer(self, force=False):
         self.cache_lock.acquire()
 
-        num_entries = self._get_row("SELECT COUNT(*) FROM chunk_cache WHERE modified = 'True'")[0]
-        # print('Write buffer contains', num_entries, 'entries')
-        if force and num_entries == 0 or not force and num_entries < config.MAX_WRITE_BUFFER_SIZE:
+        if not self._should_process_buffer(force):
+            log.debug('Skipping processing write buffer')
             self.cache_lock.release()
             return
 
+        log.debug('Processing write buffer (force=%s)', force)
+
         try:
-            row = self._get_row("SELECT inode,chunk_index,data FROM chunk_cache WHERE modified = 'True' LIMIT 1")
+            row = self._get_row("SELECT inode,chunk_index,data FROM chunk_cache WHERE modified = 'True' ORDER BY last_update ASC LIMIT 1")
         except NoSuchRowError:
             # this should never happen, right?
             raise(Exception("this is bad"))
@@ -123,12 +130,11 @@ class Operations(pyfuse3.Operations):
 
                 assert len(chunk_data) == len(chunk_data_encrypted)
 
-                # print('clearing write buffer, making chunkUploadInit request', 'inode', inode, 'chunk_index', chunk_index, 'size', chunk_data_size)
+                log.debug('going to make chunkUploadInit request for inode %s chunk_index %s with size %s', inode, chunk_index, chunk_data_size)
 
                 request_data = {
                     'file': inode,
                     'chunk': chunk_index,
-                    # 'type': 'upload',
                     'checksum': chunk_data_checksum,
                     'size': chunk_data_size
                 }
@@ -139,14 +145,17 @@ class Operations(pyfuse3.Operations):
                 (success, response) = api.post('chunkUploadInit', data=request_data)
 
                 if success:
-                    # print('ChunkUploadInit request successful, uploading chunk to all chunkservers...', response)
                     temp_id = response['id']
                     success_node_ids = []
                     nodes = response['nodes']
                     if len(nodes) == 0:
-                        print('FAIL nodes empty')
+                        log.warning("Can't upload chunk, didn't receive any nodes from metaserver")
                         failure = True
                         break
+
+                    log.info('Uploading chunk %s for inode %s', chunk_index, inode)
+
+                    log.debug('chunkUploadInit request successful, uploading chunk to all chunkservers...')
 
                     for node in response['nodes']:
                         upload_address = node['address']
@@ -154,56 +163,63 @@ class Operations(pyfuse3.Operations):
                             r = requests.post(upload_address, data=chunk_data_encrypted, headers={'Content-Type':'application/octet-stream'})
                             if r.status_code == 200:
                                 success_node_ids.append(node['id'])
-                                print('Successfully uploaded to node', node['id'])
+                                log.info('Uploaded to node %s', node['id'])
                             else:
-                                print('Http status code', r.status_code, 'node', node, r.text)
+                                log.warn('Error during upload to node %s, http status code %s, response: %s', node, r.status_code, r.text)
                         except RequestException:
-                            print('Failed to connect to', node)
-                else: # not successful
+                            log.warn('Failed to connect to node %s', node)
+                else: # chunkUploadInit not successful
                     if response == 2: # file not exists
-                        log.warn('Failed to transfer chunk, file no longer exists. Ignoring and removing from write buffer...')
+                        log.warn('Failed to transfer chunk, file deleted while we were still uploading? Ignoring and removing from write buffer')
                         self.cursor.execute("DELETE FROM chunk_cache WHERE inode=? AND chunk_index=?", (inode, chunk_index))
                         break
                     else:
-                        print('FAILED chunkUploadInit', response)
+                        log.warn('Unexpected chunkUploadInit failure, response: %s', response)
                         failure = True
                         break
 
                 if len(success_node_ids) == 0:
-                    log.warn('FAILED TO UPLOAD CHUNK success node ids empty')
+                    log.warn("Can't upload chunk, metaserver didn't return any nodes for us to upload to")
                     failure = True
                     break
 
-                # print('Making chunk upload finalize request')
+                log.debug('Chunk uploaded, going to make chunk upload finalize request')
                 request_data = {
                     'id': temp_id,
                     'nodes': success_node_ids,
                 }
                 (success, response) = api.post('chunkUploadFinalize', data=request_data)
                 if success:
-                    print('Uploaded chunk successfully!')
+                    log.debug('Finalized upload for chunk %s inode %s', chunk_index, inode)
                 else:
                     if response == 2: # file not exists
-                        print('Failed to transfer chunk, file no longer exists. Ignoring.')
+                        log.warn('Failed to upload chunk, file no longer exists. Deleted in between upload and finalize? Ignoring and removing from write buffer')
+                        self.cursor.execute("DELETE FROM chunk_cache WHERE inode=? AND chunk_index=?", (inode, chunk_index))
+                        break
                     else:
-                        print('FAILED chunkUploadFinalize', response)
+                        log.warn('Failure during chunkUploadFinalize %s', response)
                         failure = True
                         break
 
                 # mark the chunk we just uploaded as not modified (functioning as read cache)
-                print('upload successful', chunk_data_size)
+                log.debug('upload successful')
                 self.cursor.execute("UPDATE chunk_cache SET modified = 'False' WHERE inode=? AND chunk_index=?", (inode, chunk_index))
 
-                try:
+                # get new chunk from write buffer for next iteration, if available
+                if self._should_process_buffer(force):
                     row = self._get_row("SELECT inode,chunk_index,data FROM chunk_cache WHERE modified = 'True' LIMIT 1")
-                except NoSuchRowError:
+                else:
                     row = None
+                # try:
+                #     row = self._get_row("SELECT inode,chunk_index,data FROM chunk_cache WHERE modified = 'True' LIMIT 1")
+                # except NoSuchRowError:
+                #     row = None
 
             if failure:
-                print('Errors were encountered while clearing the write buffer. Trying again in 5 seconds...')
+                log.info('Errors were encountered while clearing the write buffer. Trying again in 5 seconds...')
                 time.sleep(5)
             else:
-                print('done clearing write buffer')
+                log.info('Done clearing write buffer')
 
         self.cache_lock.release()
 
@@ -219,17 +235,17 @@ class Operations(pyfuse3.Operations):
             fh += 1
 
         self.file_handles[fh] = inode_info
-        print('obtain file handle', fh)
+        log.debug('obtain file handle %s', fh)
         return fh
 
 
     def _release_file_handle(self, fh):
-        print('release file handle', fh)
+        log.debug('release file handle %s', fh)
         del self.file_handles[fh]
 
 
     def _update_file_handle(self, fh):
-        print('update file handle', fh)
+        log.debug('update file handle %s', fh)
         inode = self.file_handles[fh].inode()
         inode_info = Inode.by_inode(inode)
         self.file_handles[fh] = inode_info
@@ -363,7 +379,7 @@ class Operations(pyfuse3.Operations):
             else:
                 print('unlink error', response)
                 raise(FUSEError(errno.EREMOTEIO)) # Remote I/O error
-        print('delete done')
+        log.debug('delete done')
 
 
     async def rmdir(self, inode_p, name, ctx):
@@ -376,7 +392,7 @@ class Operations(pyfuse3.Operations):
             elif response in [22,23,25]:
                 raise FUSEError(errno.ENOENT) # No such file or directory. but wait, what?? should not be possible
             else:
-                print('rmdir error', response)
+                log.warn('rmdir error, response: %s', response)
                 raise(FUSEError(errno.EREMOTEIO)) # Remote I/O error
 
 
@@ -421,7 +437,7 @@ class Operations(pyfuse3.Operations):
             elif response == 9:
                 raise(FUSEError(errno.EACCES)) # Permission denied
             else:
-                print('rename error', response)
+                log.warn('rename error, response: %s', response)
                 raise(FUSEError(errno.EREMOTEIO)) # Remote I/O error
 
 
@@ -450,8 +466,8 @@ class Operations(pyfuse3.Operations):
         The method should return an EntryAttributes instance (containing both the changed
         and unchanged values).
         """
+        log.warn('Ignoring setattr, not yet supported')
         # raise(FUSEError(errno.ENOTSUP))
-        print('Ignoring setattr')
         # raise(NotImplementedError('Setting attributes is not supported'))
         # if fields.update_size:
         #     data = self.get_row('SELECT data FROM inodes WHERE id=?', (inode,))[0]
@@ -538,7 +554,7 @@ class Operations(pyfuse3.Operations):
         FileInfo documentation for more information.
         """
         # self.inode_open_count[inode] += 1
-        print('open', inode, flags)
+        log.debug('open inode %s flags %s', inode, flags)
 
         # make sure the inode exists and is a file
         (fh, info) = self._obtain_file_handle(inode)
@@ -550,7 +566,7 @@ class Operations(pyfuse3.Operations):
 
 
     async def access(self, inode, mode, ctx):
-        print('access')
+        log.debug('access')
         return True
 
 
@@ -612,31 +628,31 @@ class Operations(pyfuse3.Operations):
                 if node_response.status_code == 200:
                     chunk_data_encrypted = node_response.content
                     if hashlib.md5(chunk_data_encrypted).hexdigest() == checksum:
-                        print('Download finished, checksum valid! size of downloaded data:', len(chunk_data_encrypted))
+                        log.info('Downloaded chunk %s for inode %s', chunk_index, inode)
                         chunk_data = self._get_cipher(inode, chunk_index).decrypt(chunk_data_encrypted)
 
                         # there should never be a conflict here, if there was we would've returned data from the read cache instead of downloading it
                         self.cursor.execute("INSERT INTO chunk_cache (inode, chunk_index, data, last_update, modified) VALUES (?,?,?,?,'False')", (inode, chunk_index, chunk_data, int(time.time())))
                         return chunk_data
                     else:
-                        print('Checksum error while downloading chunk, size of downloaded data was', len(chunk_data_encrypted))
+                        log.info('Checksum error while downloading chunk, size of downloaded data was %s', len(chunk_data_encrypted))
                         if len(chunk_data_encrypted) < 300:
                             print('data:', chunk_data_encrypted)
                 else:
-                    print('Chunk server non-200 HTTP response code while downloading data')
+                    log.warn('Chunk server non-200 HTTP response code while downloading data')
                     print(node_response.content.decode())
             else:
                 if response == 15: # chunk not exists
-                    print(f'chunk {chunk_index} does not exist, returning empty byte array')
+                    log.debug(f'chunk {chunk_index} does not exist, returning empty byte array')
                     return b''
                 else:
                     print('API error while downloading chunk', response)
 
             if tries == 0:
-                print('Error during download on last try. Giving up and returning an error.')
+                log.error('Error during download on last try. Giving up and returning an error.')
                 return None
             else:
-                print(f'Error during download, retrying ({tries} tries left).')
+                log.warn(f'Error during download, retrying ({tries} tries left).')
                 return self._get_chunk_data(inode, chunk_index, tries=(tries - 1))
 
 
@@ -646,13 +662,12 @@ class Operations(pyfuse3.Operations):
         inode_info = self._get_fh_info(fh)
         inode = inode_info.inode()
 
-        print('read -', 'fh', fh, 'offset', offset, 'length', length, 'chunk start', start_chunk, 'chunk end', end_chunk, 'inode', inode, 'name', inode_info.path())
+        log.debug('read fh %s, offset %s, len %s, start chunk %s, end chunk %s, inode %s, path %s', fh, offset, length, start_chunk, end_chunk, inode, inode_info.path())
 
         self.cache_lock.acquire() # _get_chunk_data() requires cache lock
 
         chunks_data = b''
         for chunk_index in range(start_chunk, end_chunk + 1):
-            # empty_if_missing = chunk_index == 0 and inode_info.size() == 0 # zero size files don't have any chunks
             data = self._get_chunk_data(inode, chunk_index)
 
             if data is None:
@@ -681,7 +696,7 @@ class Operations(pyfuse3.Operations):
         """
         start_chunk = offset // config.CHUNKSIZE
         end_chunk = (offset+len(buf)) // config.CHUNKSIZE
-        print('write -', 'handle', fh, 'offset', offset, 'len(buf)', len(buf), 'chunk start', start_chunk, 'chunk end', end_chunk)
+        log.debug('write fh %s, offset %s, len %s, start chunk %s, end chunk %s', fh, offset, len(buf), start_chunk, end_chunk)
 
         inode_info = self._get_fh_info(fh)
         inode = inode_info.inode()
@@ -725,7 +740,7 @@ class Operations(pyfuse3.Operations):
 
 
     async def release(self, fh):
-        print('release', fh)
+        log.debug('release fh %s', fh)
         self._release_file_handle(fh)
         self._clear_write_buffer(force=True)
 
@@ -773,30 +788,28 @@ def construct_encryption_key():
 
     response = api.get('getEncryptionKey')
     if response is None or not response[0]:
-        print('Connection error, exiting')
+        log.error('Connection error, exiting')
         exit(1)
 
     (_success, response) = response
     key_encoded = response['key']
 
-    print('Using encryption key (base64)', key_encoded)
+    log.info('Using encryption key (base64) %s', key_encoded)
 
     key = base64.b64decode(key_encoded)
 
     if len(key) != 32:
-        print('Key must be 32 bytes long, it is', len(key), 'bytes.')
+        log.error('Key must be 32 bytes long, it is %s bytes.', len(key))
         exit(1)
 
     return key
 
 
 if __name__ == '__main__':
-    key = construct_encryption_key()
-
-    print('Successfully connected to metaserver')
-
     options = parse_args()
     init_logging(options.debug)
+    key = construct_encryption_key()
+
     operations = Operations(key)
 
     if pyfuse3.ROOT_INODE != config.ROOT_INODE:
@@ -809,6 +822,8 @@ if __name__ == '__main__':
     if options.debug_fuse:
         fuse_options.add('debug')
     pyfuse3.init(operations, options.mountpoint, fuse_options)
+
+    log.info('Started successfully')
 
     try:
         log.debug('Entering main loop..')

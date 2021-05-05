@@ -1,10 +1,14 @@
 import config
 import requests
+import logging
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 from requests_toolbelt import sessions
 import base64
 import json as jsonlib
+from itertools import takewhile
+
+log = logging.getLogger()
 
 class TimeoutHTTPAdapter(HTTPAdapter):
     def __init__(self, *args, **kwargs):
@@ -21,11 +25,19 @@ class TimeoutHTTPAdapter(HTTPAdapter):
         return super().send(request, **kwargs)
 
 
+# Retry frequently to prevent I/O locking up for long
+# replace backoff function in urllib3 Retry
+orig_backoff_fun = Retry.get_backoff_time
+def custom_backoff_time(self):
+    return min(config.REQUEST_BACKOFF_MAX, orig_backoff_fun(self))
+Retry.get_backoff_time = custom_backoff_time
+
+
 retries = Retry(
-    total=200,
+    total=config.REQUEST_RETRY_COUNT,
     status_forcelist=[429],
     method_whitelist=['GET', 'POST'],
-    backoff_factor=0.3
+    backoff_factor=config.REQUEST_BACKOFF_FACTOR,
 )
 
 http = sessions.BaseUrlSession(base_url=config.METASERVER)
@@ -44,43 +56,43 @@ def get_headers():
 
 def get(api_method, params={}):
     url = '/client/' + api_method
-    print("Making request", url, params)
+    log.debug('Making request to url %s with params %s', url, params)
     r = http.get(url, headers=get_headers(), params=params)
     if r.status_code == 200:
         json = r.json()
         if 'error' in json:
             error_code = json['error']
             error_message = json['error_message'] if 'error_message' in json else '?'
-            print('API error', error_code, error_message, '(note: in many cases API errors are expected)')
+            log.debug('API error %s %s (note: in many cases API errors are expected)', error_code, error_message)
             return (False, error_code)
         else:
             return (True, json)
     else:
-        print(f'Status code {r.status_code}, response is printed below.')
-        print(r.text)
-        print('Request params below')
-        print(params)
+        log.warn('Status code %s, response is printed below.', r.status_code)
+        log.warn(r.text)
+        log.warn('Request params below')
+        log.warn(params)
 
 def post(api_method, data):
     url = '/client/' + api_method
-    print("Making request", url, data)
+    log.debug('Making request to url %s with params %s', url, data)
     r = http.post(url, headers=get_headers(), json=data)
     if r.status_code == 200:
         try:
             json = r.json()
         except jsonlib.JSONDecodeError as e:
-            print('Json decode error', e)
-            print('Response as text:', r.text)
+            log.error('Json decode error %s', e)
+            log.error('Response as text: %s', r.text)
 
         if 'error' in json:
             error_code = json['error']
             error_message = json['error_message'] if 'error_message' in json else '?'
-            print('API error', error_code, error_message, '(note: in many cases API errors are expected)')
+            log.debug('API error %s %s (note: in many cases API errors are expected)', error_code, error_message)
             return (False, error_code)
         else:
             return (True, json)
     else:
-        print(f'Status code {r.status_code}, response is printed below.')
-        print(r.text)
-        print('Request data below')
-        print(data)
+        log.warn('Status code %s, response is printed below.', r.status_code)
+        log.warn(r.text)
+        log.warn('Request data below')
+        log.warn(data)
