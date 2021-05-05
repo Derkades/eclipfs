@@ -1,8 +1,9 @@
 import errno
 
-from pyfuse3 import FUSEError
+from pyfuse3 import FUSEError # pylint: disable=no-name-in-module
 
 import api
+import config
 
 class Inode:
 
@@ -80,6 +81,13 @@ class Inode:
 
     def parent_obj(self):
         return Inode(self.parent_inode())
+
+    @staticmethod
+    def ceildiv(a, b):
+        return -(-a // b)
+
+    def chunks_count(self):
+        return self.ceildiv(self.size(), config.CHUNKSIZE)
 
     def list_as_tuple(self):
         entries = []
