@@ -14,6 +14,4 @@ services:
         read_only: true
     ports: ['127.0.0.1:5432:5432']
     environment:
-      POSTGRES_PASSWORD: secure
-
-# SELECT id FROM chunk JOIN chunk_node ON id=chunk GROUP BY chunk.id HAVING COUNT(node) < $1 LIMIT $2
+      POSTGRES_HOST_AUTH_METHOD: trust
