@@ -1,11 +1,8 @@
 from flask import Flask, Response, request, abort, jsonify
-from threading import Thread
 from time import sleep
 import schedule
 import dsnapi
-import threading
 from os import environ as env
-import os
 from pathlib import Path
 from requests.exceptions import RequestException
 import requests
@@ -13,7 +10,6 @@ import random
 import shutil
 import threading
 import hashlib
-# import binascii
 
 
 app = Flask(__name__)
@@ -40,22 +36,22 @@ def verify_request_auth(typ):
         abort(403, 'Invalid node_token')
 
 
-def get_chunk_path(chunk_id, mkdirs=False):
+def get_chunk_path(chunk_id, mkdirs=False) -> Path:
     base = env['DATA_DIR']
     dir_1 = str(chunk_id // 1_000_000_000)
     dir_2 = str(chunk_id % 1_000_000_000 // 1_000_000)
     dir_3 = str(chunk_id % 1_000_000 // 1_000)
     file_4 = str(chunk_id % 1_000) + '.efs'
 
-    dirs = os.path.join(base, dir_1, dir_2, dir_3)
+    dirs = Path(base, dir_1, dir_2, dir_3)
     if mkdirs:
-        Path(dirs).mkdir(parents=True, exist_ok=True)
-    return os.path.join(dirs, file_4)
+        dirs.mkdir(parents=True, exist_ok=True)
+    return Path(dirs, file_4)
 
 
-def get_temp_path(temp_id):
+def get_temp_path(temp_id) -> Path:
     # prevent directory traversal by ensuring temp_id is int
-    return '/tmp/eclipfs-chunkserver-' + str(int(temp_id)) + '.efs'
+    return Path('/tmp/eclipfs-chunkserver-' + str(int(temp_id)) + '.efs')
 
 
 def read_chunk(chunk_id):
@@ -69,36 +65,12 @@ def read_chunk(chunk_id):
         Chunk data, or None if the chunk does not exist locally
     """
     path = get_chunk_path(chunk_id)
-    # print('path', path)
-    if not os.path.exists(path):
+    if not path.exists():
         print('WARNING: path', path, 'not found!')
         return None
-    with open(path, 'rb') as file:
+    with path.open('rb') as file:
         data = file.read()
     return data
-
-
-# def create_chunk(chunk_id, data):
-#     """
-#     Write chunk data to local disk, overwriting if the chunk already exists
-
-#     Parameters:
-#         inode: File id / inode
-#         index: Chunk index
-#     Returns:
-#         success boolean
-#     """
-#     path = get_chunk_path(chunk_id, mkdirs=True)
-#     if not path:
-#         print('create_chunk fail, path is None')
-#         return False
-
-#     if len(data) > 1000000:
-#         print('create_chunk fail, data too large')
-#         return False
-#     with open(path, 'wb') as file:
-#         file.write(data)
-#     return True
 
 
 @app.route('/ping', methods=['GET'])
@@ -111,9 +83,6 @@ def ping():
 def upload():
     verify_request_auth('write')
 
-    # if 'chunk' not in request.args:
-    #     abort(400, "Missing 'chunk' parameter")
-
     if 'id' not in request.args:
         abort(400, 'Missing id parameter')
 
@@ -123,35 +92,22 @@ def upload():
     if request.data == b'':
         abort(400, 'Request body is empty')
 
-    # inode = int(request.args['file'])
-    # index = int(request.args['index'])
-    # chunk_id = int(request.args['chunk'])
     temp_id = int(request.args['id'])
 
     data = request.data
 
     if len(data) > 1000000:
-        # print('create_chunk fail, data too large')
         abort(404, 'Data too large')
 
     fs_lock.acquire()
-    # if not create_chunk(chunk_id, request.data):
-    #     fs_lock.release()
-    #     abort(500, 'Unable to write chunk data to file')
 
     temp_path = get_temp_path(temp_id)
     print('writing to', temp_path)
-    with open(temp_path, 'wb') as file:
+    with temp_path.open('wb') as file:
         file.write(data)
 
-    # (success, response, error_message) = dsnapi.notify_chunk_uploaded(chunk_id, len(request.data))
-    # if success:
     fs_lock.release()
     return Response('ok', content_type='text/plain')
-    # else:
-    #     print('error sending chunk upload notification to metaserver:', response, error_message)
-    #     fs_lock.release()
-    #     abort(500, 'Unable to send chunk upload notification to metaserver')
 
 
 @app.route('/finalize', methods=['POST'])
@@ -170,7 +126,7 @@ def finalize():
     temp_path = get_temp_path(temp_id)
 
     fs_lock.acquire()
-    if not os.path.isfile(temp_path):
+    if not temp_path.exists():
         fs_lock.release()
         print('temp file does not exist', temp_path)
         abort(404, 'temp file does not exist')
@@ -178,7 +134,6 @@ def finalize():
     new_path = get_chunk_path(chunk_id, mkdirs=True)
 
     shutil.move(temp_path, new_path)
-    print('tmp', os.listdir('/tmp'))
     fs_lock.release()
     return Response('ok', content_type='text/plain')
 
@@ -216,19 +171,9 @@ def replicate():
     if 'address' not in request.args:
         abort(400, 'Missing address')
 
-    # inode = int(request.args['file'])
-    # index = int(request.args['index'])
     chunk_id = int(request.args['chunk'])
     checksum = request.args['checksum']
     address = request.args['address']
-
-    # fs_lock.acquire()
-    # data = read_chunk(chunk_id)
-    # fs_lock.release()
-
-    # if data is None:
-    #     abort(404, 'Chunk not found. Is the token valid and of the correct length?')
-
 
     try:
         r = requests.post(address, headers={'Content-Type': 'application/octet-stream'})
@@ -262,59 +207,71 @@ def announce():
         print('Unable to contact metaserver:', e)
 
 
-def ls(path, is_file=False):
-    if not os.path.exists(path):
-        return []
-    return [e for e in os.listdir(path) if is_file == os.path.isfile(os.path.join(path, e))]
+def random_subdir(base: Path):
+    subdirs = list(base.iterdir())
+    if len(subdirs) == 0:
+        return None
+    return Path(base, random.choice(subdirs))
 
 
-# def dir_empty(dir_path):
-#     try:
-#         next(os.scandir(dir_path))
-#         return False
-#     except StopIteration:
-#         return True
+def garbage_collect():
+    fs_lock.acquire()
+    base = Path(env['DATA_DIR'])
+
+    base2 = random_subdir(base)
+    if base2 is None:
+        print('skip garbage collection, not storing any data')
+        fs_lock.release()
+        return
+
+    base3 = random_subdir(base2)
+    if base3 is None:
+        print('No directories in', base2, '- delete')
+        base2.rmdir()
+        fs_lock.release()
+        return
+
+    base4 = random_subdir(base3)
+    if base4 is None:
+        print('No files in', base3, '- delete')
+        base3.rmdir()
+        fs_lock.release()
+        return
+
+    print('Garbage collecting dir', base4)
+
+    base_int = int(base2.name + '000000000') + int(base3.name + '000000') + int(base4.name + '000')
+    chunks = [base_int + int(path.name[:-4]) for path in base4.iterdir()]
+
+    if len(chunks) == 0:
+        print('No files in', base4, '- delete')
+        base4.rmdir()
+        fs_lock.release()
+        return
+
+    print('Making request to metaserver for', chunks)
+
+    (success, response, error_message) = dsnapi.get('checkGarbage', data={'chunks': chunks})
+    if not success:
+        print('garbage collection error', response, error_message)
+        fs_lock.release()
+        return
 
 
-# def garbage_collect():
-#     fs_lock.acquire()
-#     base = env['DATA_DIR']
-#     subdirs = ls(base)
-#     if len(subdirs) == 0:
-#         print('Skipping garbage collection, this node is not storing any data.')
-#         fs_lock.release()
-#         return
+    garbage = response['garbage']
+    for chunk_id in garbage:
+        to_delete = Path(base4, str(chunk_id - base_int) + '.efs')
+        print('delete', to_delete)
+        to_delete.unlink()
 
-#     chosen_dir = random.choice(subdirs)
-#     print('Garbage collecting dir', chosen_dir)
-
-#     files = [int(d) for d in ls(os.path.join(base, chosen_dir))]
-
-#     if len(files) == 0:
-#         print('No files in directory')
-#         fs_lock.release()
-#         return
-
-#     print('Making request to metaserver for', len(files), 'files')
-#     (success, response, error_message) = dsnapi.get('checkGarbage', data={'files': files})
-#     if not success:
-#         print('garbage collection error', response, error_message)
-#         fs_lock.release()
-#         return
-
-#     garbage = response['garbage']
-#     for f in garbage:
-#         path = os.path.join(base, chosen_dir, str(f))
-#         print('Deleting', path)
-#         shutil.rmtree(path)
-
-#     fs_lock.release()
+    fs_lock.release()
 
 
 def timers():
     announce()
+    garbage_collect()
     schedule.every(7).to(9).seconds.do(announce)
-    # schedule.every(300).to(600).seconds.do(garbage_collect)
+    schedule.every(100).to(300).seconds.do(garbage_collect)
     while True:
         schedule.run_pending()
         sleep(1)
