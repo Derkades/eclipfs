@@ -6,7 +6,6 @@ import pyfuse3
 import errno
 import stat
 import time
-import sqlite3
 import logging
 from collections import defaultdict
 from pyfuse3 import FUSEError # pylint: disable=no-name-in-module
@@ -16,6 +15,7 @@ import trio
 import base64
 
 import threading
+import schedule
 import config
 import api
 from inode import Inode
@@ -43,48 +43,15 @@ class Operations(pyfuse3.Operations):
 
     def __init__(self, encryption_key):
         super(Operations, self).__init__()
-        self.db = sqlite3.connect(':memory:')
-        self.db.text_factory = str
-        self.db.row_factory = sqlite3.Row
-        self.cursor = self.db.cursor()
-        self.inode_open_count = defaultdict(int)
-        self.init_tables()
         self.cache_lock = threading.Lock()
         self.encryption_key = encryption_key
         self.file_handles = {}
-
-
-    def init_tables(self):
-        self.cursor.execute("""
-        CREATE TABLE chunk_cache (
-            inode           BIGINT NOT NULL,
-            chunk_index     INTEGER NOT NULL,
-            data            bytea NOT NULL,
-            last_update     BIGINT NOT NULL,
-            modified        BOOLEAN NOT NULL,
-            UNIQUE(inode, chunk_index)
-        )
-        """)
-
-    def _get_row(self, *a, **kw):
-        self.cursor.execute(*a, **kw)
-        try:
-            row = next(self.cursor)
-        except StopIteration:
-            raise NoSuchRowError()
-        try:
-            next(self.cursor)
-        except StopIteration:
-            pass
-        else:
-            raise NoUniqueValueError()
-
-        return row
+        self.read_cache = {}
+        self.write_buffer = {}
 
 
     def _get_cipher(self, inode, chunk_index):
         key = self.encryption_key
-        #
         # The IV does not need to be secret or secure, as long as it is unique. Every chunk is guaranteed to have a
         # unique inode+chunk_index combination.
         # padding (4 bytes) + inode (8 bytes) + chunk_index (4 bytes) = 16 bytes IV
@@ -93,36 +60,34 @@ class Operations(pyfuse3.Operations):
 
 
     def _should_process_buffer(self, force):
-        num_entries = self._get_row("SELECT COUNT(*) FROM chunk_cache WHERE modified = 'True'")[0]
+        num_entries = len(self.write_buffer)
         log.debug('Write buffer entries: %s', num_entries)
         result = force and num_entries > 0 or not force and num_entries >= config.MAX_WRITE_BUFFER_SIZE
         log.debug('Should process buffer with %s entries force=%s? %s', num_entries, force, result)
         return result
 
 
+    def _next_write_buffer_entry(self, force):
+        if not self._should_process_buffer(force):
+            return None
+
+        return next(iter(self.write_buffer.keys()))
+
 
     def _clear_write_buffer(self, force=False):
         self.cache_lock.acquire()
 
-        if not self._should_process_buffer(force):
-            log.debug('Skipping processing write buffer')
-            self.cache_lock.release()
-            return
-
         log.debug('Processing write buffer (force=%s)', force)
 
-        try:
-            row = self._get_row("SELECT inode,chunk_index,data FROM chunk_cache WHERE modified = 'True' ORDER BY last_update ASC LIMIT 1")
-        except NoSuchRowError:
-            # this should never happen, right?
-            raise(Exception("this is bad"))
+        key = self._next_write_buffer_entry(force)
 
         failure = True # so the loop runs the first time
         while failure:
             failure = False
 
-            while row:
-                (inode, chunk_index, chunk_data) = row
+            while key:
+                (chunk_data, _last_update) = self.write_buffer[key]
+                (inode, chunk_index) = key
 
                 chunk_data_encrypted = self._get_cipher(inode, chunk_index).encrypt(chunk_data)
                 chunk_data_checksum = hashlib.md5(chunk_data_encrypted).hexdigest()
@@ -171,7 +136,7 @@ class Operations(pyfuse3.Operations):
                 else: # chunkUploadInit not successful
                     if response == 2: # file not exists
                         log.warn('Failed to transfer chunk, file deleted while we were still uploading? Ignoring and removing from write buffer')
-                        self.cursor.execute("DELETE FROM chunk_cache WHERE inode=? AND chunk_index=?", (inode, chunk_index))
+                        del self.write_buffer[key]
                         break
                     else:
                         log.warn('Unexpected chunkUploadInit failure, response: %s', response)
@@ -194,7 +159,7 @@ class Operations(pyfuse3.Operations):
                 else:
                     if response == 2: # file not exists
                         log.warn('Failed to upload chunk, file no longer exists. Deleted in between upload and finalize? Ignoring and removing from write buffer')
-                        self.cursor.execute("DELETE FROM chunk_cache WHERE inode=? AND chunk_index=?", (inode, chunk_index))
+                        del self.write_buffer[key]
                         break
                     else:
                         log.warn('Failure during chunkUploadFinalize %s', response)
@@ -203,23 +168,18 @@ class Operations(pyfuse3.Operations):
 
                 # mark the chunk we just uploaded as not modified (functioning as read cache)
                 log.debug('upload successful')
-                self.cursor.execute("UPDATE chunk_cache SET modified = 'False' WHERE inode=? AND chunk_index=?", (inode, chunk_index))
+
+                # move from write buffer to read cache
+                del self.write_buffer[key]
+                self.read_cache[key] = (chunk_data, time.time())
 
                 # get new chunk from write buffer for next iteration, if available
-                if self._should_process_buffer(force):
-                    row = self._get_row("SELECT inode,chunk_index,data FROM chunk_cache WHERE modified = 'True' LIMIT 1")
-                else:
-                    row = None
-                # try:
-                #     row = self._get_row("SELECT inode,chunk_index,data FROM chunk_cache WHERE modified = 'True' LIMIT 1")
-                # except NoSuchRowError:
-                #     row = None
-
+                key = self._next_write_buffer_entry(force)
             if failure:
                 log.info('Errors were encountered while clearing the write buffer. Trying again in 5 seconds...')
                 time.sleep(5)
             else:
-                log.info('Done clearing write buffer')
+                log.debug('Done clearing write buffer')
 
         self.cache_lock.release()
 
@@ -365,7 +325,6 @@ class Operations(pyfuse3.Operations):
             if i < start_index:
                 continue
             if not pyfuse3.readdir_reply(token, name.encode(), await self.getattr(inode), i + 1):
-                # print('break')
                 break
 
 
@@ -599,19 +558,20 @@ class Operations(pyfuse3.Operations):
             ('checksum', downloaded data)
         """
 
-        # Remove outdated entries from chunk cache. Only remove non-modified entries, modified entries still need to be uploaded!
-        self.cursor.execute("DELETE FROM chunk_cache WHERE modified = 'False' AND last_update < ?", (int(time.time()) - config.READ_CACHE_TIME,))
-
         # print('cache', int(time.time()) - config.READ_CACHE_TIME)
         # self.cursor.execute('SELECT inode,chunk_index,modified,last_update FROM chunk_cache')
         # for row in self.cursor:
             # print(row['inode'], row['chunk_index'], row['modified'], row['last_update'])
 
-        try:
-            # Try to find chunk in read cache
-            chunk_data = self._get_row('SELECT data FROM chunk_cache WHERE inode=? AND chunk_index=?', (inode, chunk_index))['data']
+        # Try to find chunk in write buffer or read cache
+        key = (inode, chunk_index)
+        if key in self.write_buffer:
+            (chunk_data, _last_update) = self.write_buffer[key]
             return chunk_data
-        except NoSuchRowError:
+        elif key in self.read_cache:
+            (chunk_data, _last_update) = self.read_cache[key]
+            return chunk_data
+        else:
             # Chunk not found in cache, make request to metaserver to get a download url
             request_data = {
                 'file': inode,
@@ -631,8 +591,9 @@ class Operations(pyfuse3.Operations):
                         log.info('Downloaded chunk %s for inode %s', chunk_index, inode)
                         chunk_data = self._get_cipher(inode, chunk_index).decrypt(chunk_data_encrypted)
 
-                        # there should never be a conflict here, if there was we would've returned data from the read cache instead of downloading it
-                        self.cursor.execute("INSERT INTO chunk_cache (inode, chunk_index, data, last_update, modified) VALUES (?,?,?,?,'False')", (inode, chunk_index, chunk_data, int(time.time())))
+                        # insert downloaded data into read cache
+                        self.read_cache[key] = (chunk_data, time.time())
+
                         return chunk_data
                     else:
                         log.info('Checksum error while downloading chunk, size of downloaded data was %s', len(chunk_data_encrypted))
@@ -724,9 +685,13 @@ class Operations(pyfuse3.Operations):
 
         for chunk_index in range(start_chunk, end_chunk + 1):
             chunk_data = chunks_data[(chunk_index-start_chunk)*config.CHUNKSIZE:(chunk_index-start_chunk+1)*config.CHUNKSIZE]
-            # set modified = True so the write buffer clear function knows it needs to upload it
-            query = "INSERT INTO chunk_cache (inode, chunk_index, data, last_update, modified) VALUES (?,?,?,?,'True') ON CONFLICT(inode, chunk_index) DO UPDATE SET data=?, last_update=?, modified='True'"
-            self.cursor.execute(query, (inode, chunk_index, chunk_data, int(time.time()), chunk_data, int(time.time())))
+
+            # add to write cache and remove from read cache if present
+            key = (inode, chunk_index)
+            self.write_buffer[key] = (chunk_data, time.time())
+
+            if key in self.read_cache:
+                del self.read_cache[key]
 
         self.cache_lock.release()
 
@@ -744,15 +709,6 @@ class Operations(pyfuse3.Operations):
         self._release_file_handle(fh)
         self._clear_write_buffer(force=True)
 
-
-class NoUniqueValueError(Exception):
-    def __str__(self):
-        return 'Query generated more than 1 result row'
-
-
-class NoSuchRowError(Exception):
-    def __str__(self):
-        return 'Query produced 0 result rows'
 
 def init_logging(debug=False):
     formatter = logging.Formatter('%(asctime)s.%(msecs)03d %(threadName)s: '
@@ -805,6 +761,30 @@ def construct_encryption_key():
     return key
 
 
+def clean_read_cache(operations):
+    operations.cache_lock.acquire()
+
+    log.debug('Read cache contains %s entries', len(operations.read_cache))
+    to_remove = []
+    for key in operations.read_cache.keys():
+        (_chunk_data, last_update) = operations.read_cache[key]
+        if last_update + 30 < time.time():
+            log.debug('Removing %s from read cache', key)
+            to_remove.append(key)
+
+    for key in to_remove:
+        del operations.read_cache[key]
+
+    operations.cache_lock.release()
+
+
+def timers(operations):
+    schedule.every(5).to(10).seconds.do(lambda: clean_read_cache(operations))
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
+
 if __name__ == '__main__':
     options = parse_args()
     init_logging(options.debug)
@@ -822,6 +802,10 @@ if __name__ == '__main__':
     if options.debug_fuse:
         fuse_options.add('debug')
     pyfuse3.init(operations, options.mountpoint, fuse_options)
+
+    t = threading.Thread(target=timers, args=[operations])
+    t.daemon = True # required to exit nicely on SIGINT
+    t.start()
 
     log.info('Started successfully')
 
