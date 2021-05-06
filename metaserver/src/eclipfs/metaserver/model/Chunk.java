@@ -96,7 +96,6 @@ public class Chunk {
 	}
 
 	public List<OnlineNode> getOnlineNodes() throws SQLException {
-		System.out.println(getNodeIds());
 		return getNodeIds().stream()
 				.map(OnlineNode::getOnlineNodeById)
 				.filter(Optional::isPresent).map(Optional::get)

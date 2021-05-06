@@ -102,9 +102,6 @@ public class MetaServer {
 		httpServer = new JettyManager(7779); // TODO configurable port
 		httpServer.start();
 
-//		final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-//		executor.scheduleAtFixedRate(Replication::timer, 30, 30, TimeUnit.SECONDS);
-
 		THREAD_POOL.execute(Replication::run);
 
 		final LineReader reader = LineReaderBuilder.builder().build();

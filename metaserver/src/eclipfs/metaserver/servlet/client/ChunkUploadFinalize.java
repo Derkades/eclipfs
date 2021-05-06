@@ -79,12 +79,9 @@ public class ChunkUploadFinalize extends HttpServlet {
 			file.deleteChunk(writing.getIndex());
 			final Chunk chunk = writing.finalizeChunk();
 
-//			final List<OnlineNode> successfulNodes = new ArrayList<>(nodes.size());
 			boolean success = false;
 			for (final OnlineNode node : nodes) {
-//				System.out.println(writing.getId() + " " + chunk.getId());
 				if (node.finalizeUpload(writing.getId(), chunk.getId(), LOGGER)) {
-//					successfulNodes.add(node);
 					chunk.addNode(node);
 					success = true;
 				}

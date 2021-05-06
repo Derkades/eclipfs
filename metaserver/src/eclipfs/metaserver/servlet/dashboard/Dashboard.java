@@ -100,7 +100,7 @@ public class Dashboard extends HttpServlet {
 			writer.print("<span class=\"text-muted\">");
 			writer.print("Dashboard render took " + (System.currentTimeMillis() - start) + " ms. ");
 			writer.print("Connections: " + stats.getConnections() + " / " + stats.getConnectionsTotal() + ". ");
-			writer.print("Traffic: " + StringFormatUtils.formatByteCount(stats.getSentBytes()) + " sent / " + StringFormatUtils.formatByteCount(stats.getReceivedBytes()) + " received.");
+			writer.print("Metaserver traffic: " + StringFormatUtils.formatByteCount(stats.getSentBytes()) + " sent / " + StringFormatUtils.formatByteCount(stats.getReceivedBytes()) + " received.");
 			writer.print("</span>");
 			writer.print("</div>");
 			writer.print("</body>");

@@ -26,11 +26,8 @@ public class Validation {
 
 		// ignore first component, path starts with / so it is always blank.
 		for (int i = 1; i < components.length; i++) {
-//			System.out.println(components[i]);
 			validateFileDirectoryName(components[i]);
 		}
-//		Validate.isTrue(false);
-
 	}
 
 	public static void validateFileDirectoryName(final String name) {
