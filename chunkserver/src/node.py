@@ -42,15 +42,15 @@ def verify_request_auth(typ):
 
 def get_chunk_path(chunk_id, mkdirs=False):
     base = env['DATA_DIR']
-    dir_1 = str(chunk_id // 1_000_000)
-    dir_2 = str(chunk_id % 1_000_000)
-    dir_3 = str(chunk_id // 1_000)
-    file_name = str(chunk_id % 1_000) + '.efs'
+    dir_1 = str(chunk_id // 1_000_000_000)
+    dir_2 = str(chunk_id % 1_000_000_000 // 1_000_000)
+    dir_3 = str(chunk_id % 1_000_000 // 1_000)
+    file_4 = str(chunk_id % 1_000) + '.efs'
 
     dirs = os.path.join(base, dir_1, dir_2, dir_3)
     if mkdirs:
         Path(dirs).mkdir(parents=True, exist_ok=True)
-    return os.path.join(dirs, file_name)
+    return os.path.join(dirs, file_4)
 
 
 def get_temp_path(temp_id):
