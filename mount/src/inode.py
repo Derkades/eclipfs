@@ -89,10 +89,8 @@ class Inode:
     def chunks_count(self):
         return self.ceildiv(self.size(), config.CHUNKSIZE)
 
-    def list_as_tuple(self):
-        entries = []
-        for d in self.response['directories']:
-            entries.append((d['inode'], d['name']))
-        for f in self.response['files']:
-            entries.append((f['inode'], f['name']))
-        return entries
+    def list_files(self):
+        return self.response['files'].items()
+
+    def list_dirs(self):
+        return self.response['directories'].items()

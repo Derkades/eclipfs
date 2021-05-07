@@ -44,10 +44,12 @@ class Operations(pyfuse3.Operations):
     def __init__(self, encryption_key):
         super(Operations, self).__init__()
         self.cache_lock = threading.Lock()
+        self.fh_lock = threading.Lock()
         self.encryption_key = encryption_key
         self.file_handles = {}
         self.read_cache = {}
         self.write_buffer = {}
+        self.readdir_cache = {}
 
 
     def _get_cipher(self, inode, chunk_index):
@@ -190,30 +192,41 @@ class Operations(pyfuse3.Operations):
 
 
     def _obtain_file_handle_nofetch(self, inode_info):
+        self.fh_lock.acquire()
         fh = 0
         while fh in self.file_handles:
             fh += 1
 
         self.file_handles[fh] = inode_info
+        self.fh_lock.release()
         log.debug('obtain file handle %s', fh)
         return fh
 
 
     def _release_file_handle(self, fh):
         log.debug('release file handle %s', fh)
+        self.fh_lock.acquire()
         del self.file_handles[fh]
+        if fh in self.readdir_cache:
+            del self.readdir_cache[fh]
+        self.fh_lock.release()
 
 
     def _update_file_handle(self, fh):
         log.debug('update file handle %s', fh)
+        self.fh_lock.acquire()
         inode = self.file_handles[fh].inode()
         inode_info = Inode.by_inode(inode)
         self.file_handles[fh] = inode_info
+        self.fh_lock.release()
         return inode_info
 
 
     def _get_fh_info(self, fh):
-        return self.file_handles[fh]
+        self.fh_lock.acquire()
+        info = self.file_handles[fh]
+        self.fh_lock.release()
+        return info
 
 
     async def lookup(self, inode_p, name, ctx=None):
@@ -318,10 +331,18 @@ class Operations(pyfuse3.Operations):
         filesystem must not increase the lookup count for the corresponding inodes (even if
         readdir_reply returns True).
         """
-        info = self._get_fh_info(fh)
-        entries = info.list_as_tuple()
+        self.fh_lock.acquire()
+        if fh in self.readdir_cache:
+            entries = self.readdir_cache[fh]
+        else:
+            info = self.file_handles[fh]
+            entries = []
+            entries.extend(info.list_dirs())
+            entries.extend(info.list_files())
+            self.readdir_cache[fh] = entries
+        self.fh_lock.release()
 
-        for i, (inode, name) in enumerate(entries):
+        for i, (name, inode) in enumerate(entries):
             if i < start_index:
                 continue
             if not pyfuse3.readdir_reply(token, name.encode(), await self.getattr(inode), i + 1):

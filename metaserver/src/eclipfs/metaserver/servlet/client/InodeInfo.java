@@ -3,8 +3,6 @@ package eclipfs.metaserver.servlet.client;
 import java.io.IOException;
 import java.sql.SQLException;
 
-import org.apache.commons.lang3.Validate;
-
 import com.google.gson.stream.JsonWriter;
 
 import eclipfs.metaserver.model.Directory;
@@ -38,22 +36,17 @@ public class InodeInfo extends HttpServlet {
 				writeInodeInfoJson(inode, writer);
 				if (!inode.isFile()) {
 					final Directory directory = (Directory) inode;
-					writer.name("directories").beginArray();
-
-					for (final Directory subdir : directory.listDirectories()) {
-						writer.beginObject();
-						writeInodeInfoJson(subdir, writer);
-						writer.endObject();
+					writer.name("directories").beginObject();
+					for (final Directory dir : directory.listDirectories()) {
+						writer.name(dir.getName()).value(dir.getId());
 					}
+					writer.endObject();
 
-					writer.endArray();
-					writer.name("files").beginArray();
+					writer.name("files").beginObject();
 					for (final File file : directory.listFiles()) {
-						writer.beginObject();
-						writeInodeInfoJson(file, writer);
-						writer.endObject();
+						writer.name(file.getName()).value(file.getId());
 					}
-					writer.endArray();
+					writer.endObject();
 				}
 
 				writer.endObject();
@@ -66,8 +59,6 @@ public class InodeInfo extends HttpServlet {
 	}
 
 	static void writeInodeInfoJson(final Inode inode, final JsonWriter writer) throws IOException, SQLException {
-		Validate.notNull(inode, "Inode is null");
-		Validate.notNull(writer, "Writer is null");
 		writer.name("inode").value(inode.getId());
 		writer.name("name").value(inode.getName());
 		writer.name("path").value(inode.getAbsolutePath());
