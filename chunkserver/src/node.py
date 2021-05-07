@@ -249,7 +249,7 @@ def garbage_collect():
         fs_lock.release()
         return
 
-    print('Making request to metaserver for', chunks)
+    print('Making request to metaserver for', len(chunks), 'chunks')
 
     (success, response, error_message) = dsnapi.get('checkGarbage', data={'chunks': chunks})
     if not success:
