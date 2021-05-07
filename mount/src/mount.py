@@ -131,21 +131,21 @@ class Operations(pyfuse3.Operations):
                                 success_node_ids.append(node['id'])
                                 log.info('Uploaded to node %s', node['id'])
                             else:
-                                log.warn('Error during upload to node %s, http status code %s, response: %s', node, r.status_code, r.text)
+                                log.warning('Error during upload to node %s, http status code %s, response: %s', node, r.status_code, r.text)
                         except RequestException:
-                            log.warn('Failed to connect to node %s', node)
+                            log.warning('Failed to connect to node %s', node)
                 else: # chunkUploadInit not successful
                     if response == 2: # file not exists
-                        log.warn('Failed to transfer chunk, file deleted while we were still uploading? Ignoring and removing from write buffer')
+                        log.warning('Failed to transfer chunk, file deleted while we were still uploading? Ignoring and removing from write buffer')
                         del self.write_buffer[key]
                         break
                     else:
-                        log.warn('Unexpected chunkUploadInit failure, response: %s', response)
+                        log.warning('Unexpected chunkUploadInit failure, response: %s', response)
                         failure = True
                         break
 
                 if len(success_node_ids) == 0:
-                    log.warn("Can't upload chunk, metaserver didn't return any nodes for us to upload to")
+                    log.warning("Can't upload chunk, metaserver didn't return any nodes for us to upload to")
                     failure = True
                     break
 
@@ -159,11 +159,11 @@ class Operations(pyfuse3.Operations):
                     log.debug('Finalized upload for chunk %s inode %s', chunk_index, inode)
                 else:
                     if response == 2: # file not exists
-                        log.warn('Failed to upload chunk, file no longer exists. Deleted in between upload and finalize? Ignoring and removing from write buffer')
+                        log.warning('Failed to upload chunk, file no longer exists. Deleted in between upload and finalize? Ignoring and removing from write buffer')
                         del self.write_buffer[key]
                         break
                     else:
-                        log.warn('Failure during chunkUploadFinalize %s', response)
+                        log.warning('Failure during chunkUploadFinalize %s', response)
                         failure = True
                         break
 
@@ -360,7 +360,7 @@ class Operations(pyfuse3.Operations):
             elif response in [22,23,25]:
                 raise FUSEError(errno.ENOENT) # No such file or directory. but wait, what?? should not be possible
             else:
-                log.warn('rmdir error, response: %s', response)
+                log.warning('rmdir error, response: %s', response)
                 raise(FUSEError(errno.EREMOTEIO)) # Remote I/O error
 
 
@@ -398,14 +398,16 @@ class Operations(pyfuse3.Operations):
 
         (success, response) = api.post('inodeMove', data={'inode_p': inode_p_old, 'name': name_old.decode(), 'new_parent': inode_p_new, 'new_name': name_new.decode()})
         if not success:
-            if response == 1:
-                raise(FUSEError(errno.ENOENT)) # No such file or directory
-            elif response == 6:
-                raise(FUSEError(errno.EEXIST)) # File exists
-            elif response == 9:
+            if response == 9: # MISSING_WRITE_ACCESS
                 raise(FUSEError(errno.EACCES)) # Permission denied
+            if response == 22: # INODE_NOT_EXISTS
+                raise(FUSEError(errno.ENOENT)) # No such file or directory
+            elif response == 23: # IS_A_FILE
+                raise(FUSEError(errno.EEXIST)) # File exists
+            elif response == 24: # NAME_ALREADY_EXISTS
+                raise(FUSEError(errno.EEXIST)) # File exists
             else:
-                log.warn('rename error, response: %s', response)
+                log.warning('Rname error, response: %s', response)
                 raise(FUSEError(errno.EREMOTEIO)) # Remote I/O error
 
 
@@ -434,7 +436,7 @@ class Operations(pyfuse3.Operations):
         The method should return an EntryAttributes instance (containing both the changed
         and unchanged values).
         """
-        log.warn('Ignoring setattr, not yet supported')
+        log.warning('Ignoring setattr, not yet supported')
         # raise(FUSEError(errno.ENOTSUP))
         # raise(NotImplementedError('Setting attributes is not supported'))
         # if fields.update_size:
@@ -609,7 +611,7 @@ class Operations(pyfuse3.Operations):
                         if len(chunk_data_encrypted) < 300:
                             print('data:', chunk_data_encrypted)
                 else:
-                    log.warn('Chunk server non-200 HTTP response code while downloading data')
+                    log.warning('Chunk server non-200 HTTP response code while downloading data')
                     print(node_response.content.decode())
             else:
                 if response == 15: # chunk not exists
@@ -622,7 +624,7 @@ class Operations(pyfuse3.Operations):
                 log.error('Error during download on last try. Giving up and returning an error.')
                 return None
             else:
-                log.warn(f'Error during download, retrying ({tries} tries left).')
+                log.warning(f'Error during download, retrying ({tries} tries left).')
                 return self._get_chunk_data(inode, chunk_index, tries=(tries - 1))
 
 
