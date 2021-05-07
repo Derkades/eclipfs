@@ -49,7 +49,6 @@ class Operations(pyfuse3.Operations):
         self.file_handles = {}
         self.read_cache = {}
         self.write_buffer = {}
-        self.readdir_cache = {}
 
 
     def _get_cipher(self, inode, chunk_index):
@@ -207,8 +206,6 @@ class Operations(pyfuse3.Operations):
         log.debug('release file handle %s', fh)
         self.fh_lock.acquire()
         del self.file_handles[fh]
-        if fh in self.readdir_cache:
-            del self.readdir_cache[fh]
         self.fh_lock.release()
 
 
@@ -331,18 +328,9 @@ class Operations(pyfuse3.Operations):
         filesystem must not increase the lookup count for the corresponding inodes (even if
         readdir_reply returns True).
         """
-        self.fh_lock.acquire()
-        if fh in self.readdir_cache:
-            entries = self.readdir_cache[fh]
-        else:
-            info = self.file_handles[fh]
-            entries = []
-            entries.extend(info.list_dirs())
-            entries.extend(info.list_files())
-            self.readdir_cache[fh] = entries
-        self.fh_lock.release()
+        info = self._get_fh_info(fh)
 
-        for i, (name, inode) in enumerate(entries):
+        for i, (name, inode) in enumerate(info.children()):
             if i < start_index:
                 continue
             if not pyfuse3.readdir_reply(token, name.encode(), await self.getattr(inode), i + 1):

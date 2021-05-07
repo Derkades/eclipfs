@@ -89,8 +89,5 @@ class Inode:
     def chunks_count(self):
         return self.ceildiv(self.size(), config.CHUNKSIZE)
 
-    def list_files(self):
-        return self.response['files'].items()
-
-    def list_dirs(self):
-        return self.response['directories'].items()
+    def children(self):
+        return self.response['children'].items()

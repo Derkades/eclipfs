@@ -1,5 +1,6 @@
 package eclipfs.metaserver.model;
 
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -7,6 +8,8 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+
+import com.google.gson.stream.JsonWriter;
 
 import eclipfs.metaserver.Database;
 import eclipfs.metaserver.Validation;
@@ -130,6 +133,37 @@ public class Directory extends Inode {
 			result.next();
 			return new File(result);
 		}
+	}
+
+	public List<Inode> list() throws SQLException {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM inode WHERE parent=?")) {
+			query.setLong(1, this.getId());
+			final ResultSet result = query.executeQuery();
+			final List<Inode> children = new ArrayList<>();
+			while (result.next()) {
+				if (result.getBoolean("is_file")) {
+					children.add(new File(result));
+				} else {
+					children.add(new Directory(result));
+				}
+			}
+			return children;
+		}
+	}
+
+	// Used by inodeInfo endpoint
+	public void writeEntriesAsJsonDictionary(final JsonWriter writer) throws SQLException, IOException {
+		writer.beginObject();
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT id,name FROM inode WHERE parent=?")) {
+			query.setLong(1, this.getId());
+			final ResultSet result = query.executeQuery();
+			while (result.next()) {
+				writer.name(result.getString("name")).value(result.getInt("id"));
+			}
+		}
+		writer.endObject();
 	}
 
 }

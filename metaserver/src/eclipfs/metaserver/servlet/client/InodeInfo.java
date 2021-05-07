@@ -6,7 +6,6 @@ import java.sql.SQLException;
 import com.google.gson.stream.JsonWriter;
 
 import eclipfs.metaserver.model.Directory;
-import eclipfs.metaserver.model.File;
 import eclipfs.metaserver.model.Inode;
 import eclipfs.metaserver.servlet.HttpUtil;
 import jakarta.servlet.http.HttpServlet;
@@ -36,17 +35,8 @@ public class InodeInfo extends HttpServlet {
 				writeInodeInfoJson(inode, writer);
 				if (!inode.isFile()) {
 					final Directory directory = (Directory) inode;
-					writer.name("directories").beginObject();
-					for (final Directory dir : directory.listDirectories()) {
-						writer.name(dir.getName()).value(dir.getId());
-					}
-					writer.endObject();
-
-					writer.name("files").beginObject();
-					for (final File file : directory.listFiles()) {
-						writer.name(file.getName()).value(file.getId());
-					}
-					writer.endObject();
+					writer.name("children");
+					directory.writeEntriesAsJsonDictionary(writer);
 				}
 
 				writer.endObject();
