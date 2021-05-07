@@ -10,12 +10,12 @@ import random
 import shutil
 import threading
 import hashlib
+import logging
 
 
 app = Flask(__name__)
-
-
 fs_lock = threading.Lock()
+log = logging.getLogger()
 
 
 def verify_request_auth(typ):
@@ -66,7 +66,7 @@ def read_chunk(chunk_id):
     """
     path = get_chunk_path(chunk_id)
     if not path.exists():
-        print('WARNING: path', path, 'not found!')
+        log.warning('Path %s not found!', path)
         return None
     with path.open('rb') as file:
         data = file.read()
@@ -102,7 +102,7 @@ def upload():
     fs_lock.acquire()
 
     temp_path = get_temp_path(temp_id)
-    print('writing to', temp_path)
+    log.debug('Writing to temporary file %s', temp_path)
     with temp_path.open('wb') as file:
         file.write(data)
 
@@ -128,7 +128,7 @@ def finalize():
     fs_lock.acquire()
     if not temp_path.exists():
         fs_lock.release()
-        print('temp file does not exist', temp_path)
+        log.warning('Temp file does not exist: %s', temp_path)
         abort(404, 'temp file does not exist')
 
     new_path = get_chunk_path(chunk_id, mkdirs=True)
@@ -145,8 +145,6 @@ def download():
     if 'chunk' not in request.args:
         abort(400, "Missing 'chunk' parameter")
 
-    # inode = int(request.args['file'])
-    # index = int(request.args['index'])
     chunk_id = int(request.args['chunk'])
 
     fs_lock.acquire()
@@ -185,7 +183,7 @@ def replicate():
             fs_lock.acquire()
             path = get_chunk_path(chunk_id, mkdirs=True)
 
-            print('replication - writing to', path)
+            log.info('Replication: writing to %s', path)
             with open(path, 'wb') as file:
                 file.write(data)
 
@@ -202,9 +200,9 @@ def announce():
     try:
         (success, response, error_message) = dsnapi.announce()
         if not success:
-            print('Unable to contact metaserver:', response, error_message)
+            log.warning('Unable to contact metaserver: %s %s', response, error_message)
     except RequestException as e:
-        print('Unable to contact metaserver:', e)
+        log.warning('Unable to contact metaserver: %s', e)
 
 
 def random_subdir(base: Path):
@@ -220,48 +218,48 @@ def garbage_collect():
 
     base2 = random_subdir(base)
     if base2 is None:
-        print('skip garbage collection, not storing any data')
+        log.info('Skip garbage collection, not storing any data')
         fs_lock.release()
         return
 
     base3 = random_subdir(base2)
     if base3 is None:
-        print('No directories in', base2, '- delete')
+        log.info('No directories in %s, delete.', base2)
         base2.rmdir()
         fs_lock.release()
         return
 
     base4 = random_subdir(base3)
     if base4 is None:
-        print('No files in', base3, '- delete')
+        log.info('No directories in %s, delete.', base3)
         base3.rmdir()
         fs_lock.release()
         return
 
-    print('Garbage collecting dir', base4)
+    log.debug('Garbage collecting dir %s', base4)
 
     base_int = int(base2.name + '000000000') + int(base3.name + '000000') + int(base4.name + '000')
     chunks = [base_int + int(path.name[:-4]) for path in base4.iterdir()]
 
     if len(chunks) == 0:
-        print('No files in', base4, '- delete')
+        log.info('No files in %s, delete.', base4)
         base4.rmdir()
         fs_lock.release()
         return
 
-    print('Making request to metaserver for', len(chunks), 'chunks')
+    log.debug('Garbage collection - Making request to metaserver for %s chunks', len(chunks))
 
     (success, response, error_message) = dsnapi.get('checkGarbage', data={'chunks': chunks})
     if not success:
-        print('garbage collection error', response, error_message)
+        log.error('Garbage collection error %s %s', response, error_message)
         fs_lock.release()
         return
 
-
     garbage = response['garbage']
+    log.info('Garbage collection - deleting %s files', len(garbage))
     for chunk_id in garbage:
         to_delete = Path(base4, str(chunk_id - base_int) + '.efs')
-        print('delete', to_delete)
+        log.debug('deleting file %s', to_delete)
         to_delete.unlink()
 
     fs_lock.release()
