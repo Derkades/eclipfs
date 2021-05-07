@@ -2,16 +2,26 @@ import os
 import sys
 from pathlib import Path
 
+DIR_ENTRIES = 100
+WRITE = False
+WRITE_SIZE = 1000
+
+if WRITE:
+    WRITE_BYTES = b'a' * WRITE_SIZE
+
 def create_dirs(base):
-    for i in range(200):
+    for i in range(DIR_ENTRIES):
         d = Path(base, str(i))
         d.mkdir()
-        for j in range(200):
+        for j in range(DIR_ENTRIES):
             d2 = Path(d, str(j))
             d2.mkdir()
-            for k in range(200):
+            for k in range(DIR_ENTRIES):
                 f = Path(d2, str(k))
                 f.touch()
+                if WRITE:
+                    with f.open('wb') as open_file:
+                        open_file.write(WRITE_BYTES)
                 print(f)
 
 
