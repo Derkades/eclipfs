@@ -201,7 +201,7 @@ def announce():
         (success, response, error_message) = dsnapi.announce()
         if not success:
             log.warning('Unable to contact metaserver: %s %s', response, error_message)
-    except RequestException as e:
+    except (requests.ConnectionError, RequestException) as e:
         log.warning('Unable to contact metaserver: %s', e)
 
 
