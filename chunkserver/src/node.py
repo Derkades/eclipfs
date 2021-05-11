@@ -177,7 +177,7 @@ def replicate():
     log.debug('replication request: chunk_id=%s checksum=%s address=%s', chunk_id, checksum, address)
 
     try:
-        r = requests.post(address, headers={'Content-Type': 'application/octet-stream'})
+        r = requests.get(address, headers={'Content-Type': 'application/octet-stream'})
         if r.status_code == 200:
             data = r.content
             if hashlib.md5(data).hexdigest() != checksum:
