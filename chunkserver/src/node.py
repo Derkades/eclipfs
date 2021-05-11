@@ -15,8 +15,9 @@ import logging
 
 app = Flask(__name__)
 fs_lock = threading.Lock()
-log = logging.getLogger()
 
+log = logging.getLogger()
+log.setLevel('DEBUG' if 'DEBUG' in env else 'INFO')
 
 def verify_request_auth(typ):
     if 'node_token' not in request.args:
@@ -173,6 +174,8 @@ def replicate():
     checksum = request.args['checksum']
     address = request.args['address']
 
+    log.debug('replication request: chunk_id=%s checksum=%s address=%s', chunk_id, checksum, address)
+
     try:
         r = requests.post(address, headers={'Content-Type': 'application/octet-stream'})
         if r.status_code == 200:
@@ -191,8 +194,10 @@ def replicate():
 
             return Response('ok', content_type='text/plain')
         else:
+            log.warning('Failed to make replication request to %s: %s', address, r.text)
             abort(500, r.text)
     except RequestException as e:
+        log.warning('Failed to make replication request to %s: %s', address, e)
         abort(500, (address, e))
 
 
