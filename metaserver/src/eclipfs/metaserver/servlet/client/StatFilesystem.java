@@ -2,6 +2,7 @@ package eclipfs.metaserver.servlet.client;
 
 import java.io.IOException;
 import java.sql.SQLException;
+import java.util.List;
 
 import com.google.gson.stream.JsonWriter;
 
@@ -24,7 +25,15 @@ public class StatFilesystem extends ClientApiEndpoint {
 	protected void handle(final User user, final HttpServletRequest request, final HttpServletResponse response)
 			throws IOException, SQLException {
 		// TODO Cache
-		final long freeSpace = OnlineNode.getOnlineNodes().stream().mapToLong(OnlineNode::getFreeSpace).sum() / Tunables.REPLICATION_GOAL;
+		final List<OnlineNode> onlineNodes = OnlineNode.getOnlineNodes();
+		final long freeSpace;
+		if (onlineNodes.size() <= 1) {
+			freeSpace = 0;
+		} else if (onlineNodes.size() == 2) {
+			freeSpace = Math.min(onlineNodes.get(0).getFreeSpace(), onlineNodes.get(1).getFreeSpace());
+		} else {
+			freeSpace = onlineNodes.stream().mapToLong(OnlineNode::getFreeSpace).sum() / Tunables.REPLICATION_GOAL;
+		}
 		final long usedSpace = Chunk.getTotalSizeEstimate();
 
 		try (JsonWriter writer = HttpUtil.getJsonWriter(response)) {
