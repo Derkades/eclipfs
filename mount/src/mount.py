@@ -780,13 +780,14 @@ def construct_encryption_key():
 def clean_read_cache(operations):
     operations.cache_lock.acquire()
 
-    log.debug('Read cache contains %s entries', len(operations.read_cache))
     to_remove = []
     for key in operations.read_cache.keys():
         (_chunk_data, last_update) = operations.read_cache[key]
         if last_update + 30 < time.time():
             log.debug('Removing %s from read cache', key)
             to_remove.append(key)
+
+    log.info('Read cache contains %s entries, removing %s', len(operations.read_cache), len(to_remove))
 
     for key in to_remove:
         del operations.read_cache[key]
