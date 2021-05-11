@@ -39,7 +39,7 @@ public class DashboardNodes extends HttpServlet {
 					data[row][5] = "-";
 				}
 				data[row][6] = node.getStoredChunkCount();
-//					data[row][7] = StringFormatUtils.formatByteCount(node.getStoredChunkSize());
+				data[row][7] = StringFormatUtils.formatByteCount(node.getStoredChunkSize());
 				row++;
 			}
 			Dashboard.writeTable(response.getWriter(), columns, data);
