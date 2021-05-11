@@ -42,8 +42,6 @@ public class Announce extends NodeApiEndpoint {
 			return;
 		}
 
-		OnlineNode.processNodeAnnounce(node, address, version, freeSpace, storageQuota);
-
 		// Try to make request back to node
 		try {
 			final HttpURLConnection connection = (HttpURLConnection) new URL(address, "/ping?node_token=" + node.getToken()).openConnection();
@@ -65,6 +63,8 @@ public class Announce extends NodeApiEndpoint {
 			ApiError.NODE_ADDRESS_UNREACHABLE.send(response, e.toString());
 			return;
 		}
+
+		OnlineNode.processNodeAnnounce(node, address, version, freeSpace, storageQuota);
 
 		HttpUtil.writeSuccessTrueJson(response);
 	}
