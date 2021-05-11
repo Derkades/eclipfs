@@ -489,24 +489,29 @@ class Operations(pyfuse3.Operations):
         return self._getattr(info, ctx)
 
 
-    # async def statfs(self, ctx):
-        # raise(NotImplementedError('statfs not yet supported'))
-        # stat_ = pyfuse3.StatvfsData()
+    async def statfs(self, ctx):
+        (success, response) = api.get('statFilesystem')
+        if not success:
+            raise FUSEError(errno.EREMOTEIO)
 
-        # stat_.f_bsize = 512
-        # stat_.f_frsize = 512
+        stat_ = pyfuse3.StatvfsData()
 
-        # size = self.get_row('SELECT SUM(size) FROM inodes')[0]
-        # stat_.f_blocks = size // stat_.f_frsize
-        # stat_.f_bfree = max(size // stat_.f_frsize, 1024)
-        # stat_.f_bavail = stat_.f_bfree
+        stat_.f_bsize = config.CHUNKSIZE
+        stat_.f_frsize = config.CHUNKSIZE
 
-        # inodes = self.get_row('SELECT COUNT(id) FROM inodes')[0]
-        # stat_.f_files = inodes
-        # stat_.f_ffree = max(inodes , 100)
-        # stat_.f_favail = stat_.f_ffree
+        used_blocks = response['used'] // config.CHUNKSIZE
+        free_blocks = response['free'] // config.CHUNKSIZE
+        total_blocks = used_blocks + free_blocks
 
-        # return stat_
+        stat_.f_blocks = total_blocks
+        stat_.f_bfree = free_blocks
+        stat_.f_bavail = stat_.f_bfree
+
+        stat_.f_files = 0
+        stat_.f_ffree = 0
+        stat_.f_favail = stat_.f_ffree
+
+        return stat_
 
 
     async def open(self, inode, flags, ctx):
