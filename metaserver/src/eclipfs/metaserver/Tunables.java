@@ -19,7 +19,7 @@ public class Tunables {
 	public static final long REPLICATION_SLOW_DELAY = 500;
 	public static final long REPLICATION_FAST_THRESHOLD = 400;
 	public static final int REPLICATION_ADD_AMOUNT = 500;
-	public static final int REPLICATION_EMPTY_SLEEP = 30_000;
+	public static final int REPLICATION_EMPTY_SLEEP = 120_000;
 
 	public static final int NODE_TOKEN_LENGTH = 32;
 
