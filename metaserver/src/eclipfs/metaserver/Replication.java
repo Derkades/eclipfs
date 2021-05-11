@@ -113,7 +113,7 @@ public class Replication {
 				final OnlineNode replicationTarget = optReplicationTarget.get();
 				final Optional<OnlineNode> optReplicationSource = Nodes.selectNode(chunk, TransferType.DOWNLOAD);
 				if (optReplicationSource.isEmpty()) {
-					LOGGER.warn("Cannot replicate chunk, not source node available.");
+					LOGGER.warn("Cannot replicate chunk, no source node available.");
 					continue;
 				}
 
