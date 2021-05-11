@@ -121,6 +121,7 @@ public class Replication {
 				if (replicationTarget.requestReplicate(chunk, replicationSource, LOGGER)) {
 					LOGGER.info("Successfully replicated chunk.");
 				}
+				chunk.addNode(replicationTarget);
 			} catch (final Exception e) {
 				e.printStackTrace();
 			}
