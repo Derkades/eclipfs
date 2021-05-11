@@ -99,10 +99,10 @@ public class OnlineNode extends Node {
 			if (response.statusCode() == 200) {
 				return true;
 			} else {
-				logger.warn("Received response code %s", response.statusCode());
-				logger.warn("Address: %s", this.address);
+				logger.warn("Received response code {}", response.statusCode());
+				logger.warn("Address: {}", this.address);
 				if (response.body().length() < 1000) {
-					logger.warn("Response: %s", response.body());
+					logger.warn("Response: {}", response.body());
 				} else {
 					logger.warn("Response is too long to print");
 				}
@@ -110,7 +110,7 @@ public class OnlineNode extends Node {
 			}
 		} catch (final IOException | InterruptedException e) {
 			logger.warn("Error", e);
-			logger.warn("Address: %s", this.address);
+			logger.warn("Address: {}", this.address);
 			return false;
 		}
 	}
