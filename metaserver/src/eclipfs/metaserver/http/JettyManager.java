@@ -19,6 +19,9 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.util.resource.Resource;
 
 import eclipfs.metaserver.MetaServer;
+import eclipfs.metaserver.http.endpoints.ClientApiEndpoint;
+import eclipfs.metaserver.http.endpoints.EndpointHandler;
+import eclipfs.metaserver.http.endpoints.NodeApiEndpoint;
 import eclipfs.metaserver.servlet.client.ChunkDownload;
 import eclipfs.metaserver.servlet.client.ChunkInfo;
 import eclipfs.metaserver.servlet.client.ChunkUploadFinalize;
@@ -29,70 +32,66 @@ import eclipfs.metaserver.servlet.client.GetEncryptionKey;
 import eclipfs.metaserver.servlet.client.InodeDelete;
 import eclipfs.metaserver.servlet.client.InodeInfo;
 import eclipfs.metaserver.servlet.client.InodeMove;
-import eclipfs.metaserver.servlet.dashboard.Dashboard;
+import eclipfs.metaserver.servlet.client.StatFilesystem;
+import eclipfs.metaserver.servlet.dashboard.DashboardFilesystem;
+import eclipfs.metaserver.servlet.dashboard.DashboardNodes;
+import eclipfs.metaserver.servlet.dashboard.DashboardReplication;
+import eclipfs.metaserver.servlet.dashboard.DashboardUsers;
 import eclipfs.metaserver.servlet.node.Announce;
 import eclipfs.metaserver.servlet.node.CheckGarbage;
 
 public class JettyManager {
 
-	private final HttpSecurityManager security = new HttpSecurityManager();
+	private final HttpSecurityManager dashboardSecurity = new HttpSecurityManager();
 	private final Server server  = new Server();
 	final ConnectionStatistics stats = new ConnectionStatistics();
 
 	public JettyManager(final int port) throws MalformedURLException, SQLException, URISyntaxException {
-		final ServletContextHandler clientApiContext = new ServletContextHandler();
-		clientApiContext.setContextPath("/client");
-		clientApiContext.addServlet(ChunkDownload.class, "/chunkDownload");
-		clientApiContext.addServlet(ChunkInfo.class, "/chunkInfo");
-		clientApiContext.addServlet(ChunkUploadFinalize.class, "/chunkUploadFinalize");
-		clientApiContext.addServlet(ChunkUploadInit.class, "/chunkUploadInit");
-		clientApiContext.addServlet(DirectoryCreate.class, "/directoryCreate");
-		clientApiContext.addServlet(FileCreate.class, "/fileCreate");
-		clientApiContext.addServlet(GetEncryptionKey.class, "/getEncryptionKey");
-		clientApiContext.addServlet(InodeDelete.class, "/inodeDelete");
-		clientApiContext.addServlet(InodeInfo.class, "/inodeInfo");
-		clientApiContext.addServlet(InodeMove.class, "/inodeMove");
-		clientApiContext.setServer(this.server);
+		final EndpointHandler<ClientApiEndpoint> clientEndpoints = new EndpointHandler<>("/client");
+		clientEndpoints.registerEndpoint(new ChunkDownload());
+		clientEndpoints.registerEndpoint(new ChunkInfo());
+		clientEndpoints.registerEndpoint(new ChunkUploadFinalize());
+		clientEndpoints.registerEndpoint(new ChunkUploadInit());
+		clientEndpoints.registerEndpoint(new DirectoryCreate());
+		clientEndpoints.registerEndpoint(new FileCreate());
+		clientEndpoints.registerEndpoint(new GetEncryptionKey());
+		clientEndpoints.registerEndpoint(new InodeDelete());
+		clientEndpoints.registerEndpoint(new InodeInfo());
+		clientEndpoints.registerEndpoint(new InodeMove());
+		clientEndpoints.registerEndpoint(new StatFilesystem());
 
-		final ServletContextHandler nodeApiContext = new ServletContextHandler();
-		nodeApiContext.setContextPath("/node");
-		nodeApiContext.addServlet(Announce.class, "/announce");
-		nodeApiContext.addServlet(CheckGarbage.class, "/checkGarbage");
-//		nodeApiContext.addServlet(NotifyChunkUploaded.class, "/notifyChunkUploaded");
-		nodeApiContext.setServer(this.server);
+		final EndpointHandler<NodeApiEndpoint> nodeEndpoints = new EndpointHandler<>("/node");
+		nodeEndpoints.registerEndpoint(new Announce());
+		nodeEndpoints.registerEndpoint(new CheckGarbage());
 
 		final ServletContextHandler dashboardContext = new ServletContextHandler();
 		dashboardContext.setContextPath("/dashboard");
-		dashboardContext.addServlet(Dashboard.class, "/");
-		dashboardContext.setServer(this.server);
-		dashboardContext.setSecurityHandler(this.security.getSecurityHandler());
-
-		final ServletContextHandler rootContext = new ServletContextHandler();
-		rootContext.setContextPath("/");
 		final ServletHolder holderPwd = new ServletHolder("default", DefaultServlet.class);
-		rootContext.addServlet(holderPwd, "/");
-		rootContext.setWelcomeFiles(new String[] { "index.html" });
-		final String dir = "/web";
+		dashboardContext.addServlet(holderPwd, "/");
+		dashboardContext.setWelcomeFiles(new String[] { "index.html" });
+		final String dir = "/dashboard";
 		final String someFile = "/styles.css";
 		final URL randomFileUrl = MetaServer.class.getResource(dir + someFile);
 		final Resource baseResource = Resource.newResource(new URL(StringUtils.removeEnd(randomFileUrl.toString(), someFile)));
-		rootContext.setBaseResource(baseResource);
-		rootContext.setServer(this.server);
+		dashboardContext.setBaseResource(baseResource);
+		dashboardContext.addServlet(DashboardFilesystem.class, "/filesystem");
+		dashboardContext.addServlet(DashboardNodes.class, "/nodes");
+		dashboardContext.addServlet(DashboardReplication.class, "/replication");
+		dashboardContext.addServlet(DashboardUsers.class, "/users");
+		dashboardContext.setSecurityHandler(this.dashboardSecurity.getSecurityHandler());
 
-		final ContextHandlerCollection list = new ContextHandlerCollection();
-		list.addHandler(clientApiContext);
-		list.addHandler(nodeApiContext);
-		list.addHandler(dashboardContext);
-		list.addHandler(rootContext);
-		list.setServer(this.server);
-		this.server.setHandler(list);
+		final ContextHandlerCollection handlers = new ContextHandlerCollection();
+		handlers.addHandler(clientEndpoints);
+		handlers.addHandler(nodeEndpoints);
+		handlers.addHandler(dashboardContext);
+		this.server.setHandler(handlers);
 
 		final ServerConnector connector = new ServerConnector(this.server);
 		connector.setPort(port);
 		this.server.addConnector(connector);
 		final Slf4jRequestLogWriter writer = new Slf4jRequestLogWriter();
 		writer.setLoggerName("HTTP");
-		final RequestLog requestLog = new CustomRequestLog(writer, "%{ms}Tms %{client}a %r %s %O ");
+		final RequestLog requestLog = new CustomRequestLog(writer, "%{ms}Tms %r %s %O %{client}a");
 		this.server.setRequestLog(requestLog);
 		connector.addBean(this.stats);
 	}
@@ -105,8 +104,8 @@ public class JettyManager {
 		return this.stats;
 	}
 
-	public HttpSecurityManager getSecurityManager() {
-		return this.security;
+	public HttpSecurityManager getDashboardSecurityManager() {
+		return this.dashboardSecurity;
 	}
 
 }

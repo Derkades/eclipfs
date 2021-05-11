@@ -13,6 +13,7 @@ import org.apache.commons.lang3.Validate;
 import org.springframework.security.crypto.codec.Hex;
 
 import eclipfs.metaserver.Database;
+import eclipfs.metaserver.Tunables;
 
 public class Chunk {
 
@@ -161,6 +162,15 @@ public class Chunk {
 				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"chunk\" WHERE id=?")) {
 			query.setLong(1, id);
 			return query.executeQuery().next();
+		}
+	}
+
+	public static long getTotalSizeEstimate() throws SQLException {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("SELECT SUM(size) FROM chunk")) {
+			final ResultSet result = query.executeQuery();
+			result.next();
+			return result.getLong(1) * Tunables.REPLICATION_GOAL;
 		}
 	}
 

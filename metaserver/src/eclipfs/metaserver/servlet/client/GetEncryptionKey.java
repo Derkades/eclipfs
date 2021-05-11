@@ -6,30 +6,25 @@ import java.sql.SQLException;
 import com.google.gson.stream.JsonWriter;
 
 import eclipfs.metaserver.MetaServer;
-import eclipfs.metaserver.servlet.HttpUtil;
-import jakarta.servlet.http.HttpServlet;
+import eclipfs.metaserver.http.endpoints.ClientApiEndpoint;
+import eclipfs.metaserver.model.User;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-public class GetEncryptionKey extends HttpServlet {
+public class GetEncryptionKey extends ClientApiEndpoint {
 
-	private static final long serialVersionUID = 1L;
+	public GetEncryptionKey() {
+		super("getEncryptionKey", RequestMethod.GET);
+	}
 
 	@Override
-	protected void doGet(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
-		try {
-			if (ClientAuthentication.verify(request, response).isEmpty()) {
-				return;
-			}
-
-			try (JsonWriter writer = new JsonWriter(response.getWriter())) {
-				writer.beginObject();
-				writer.name("key");
-				writer.value(MetaServer.getEncryptionKeyBase64());
-				writer.endObject();
-			}
-		} catch (final SQLException e) {
-			HttpUtil.handleSqlException(response, e);
+	protected void handle(final User user, final HttpServletRequest request, final HttpServletResponse response)
+			throws IOException, SQLException {
+		try (JsonWriter writer = new JsonWriter(response.getWriter())) {
+			writer.beginObject();
+			writer.name("key");
+			writer.value(MetaServer.getEncryptionKeyBase64());
+			writer.endObject();
 		}
 	}
 

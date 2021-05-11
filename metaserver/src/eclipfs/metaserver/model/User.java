@@ -98,7 +98,7 @@ public class User {
 			final ResultSet result = query.executeQuery();
 			result.next();
 
-			MetaServer.getHttpServer().getSecurityManager().reloadUserStore();
+			MetaServer.getHttpServer().getDashboardSecurityManager().reloadUserStore();
 
 			return new User(result);
 		}
