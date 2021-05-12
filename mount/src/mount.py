@@ -453,9 +453,6 @@ class Operations(pyfuse3.Operations):
         if fields.update_atime:
             log.warning('Ignoring uptime_atime, not supported')
 
-        if fields.update_mtime:
-            log.warning('Ignoring update_mtime, not supported')
-
         if fields.update_ctime:
             log.warning('Ignoring update_ctime, not supported')
 
