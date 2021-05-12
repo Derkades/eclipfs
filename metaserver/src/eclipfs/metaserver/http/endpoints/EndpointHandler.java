@@ -9,7 +9,7 @@ import org.apache.commons.lang.Validate;
 import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.handler.ContextHandler;
 
-import eclipfs.metaserver.servlet.HttpUtil;
+import eclipfs.metaserver.http.HttpUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

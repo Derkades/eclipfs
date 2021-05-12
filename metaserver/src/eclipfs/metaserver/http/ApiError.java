@@ -1,4 +1,4 @@
-package eclipfs.metaserver.servlet;
+package eclipfs.metaserver.http;
 
 import java.io.IOException;
 

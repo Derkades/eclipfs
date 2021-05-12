@@ -1,4 +1,4 @@
-package eclipfs.metaserver.servlet.node;
+package eclipfs.metaserver.http.endpoints.node;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -10,9 +10,9 @@ import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonWriter;
 
 import eclipfs.metaserver.Database;
+import eclipfs.metaserver.http.HttpUtil;
 import eclipfs.metaserver.http.endpoints.NodeApiEndpoint;
 import eclipfs.metaserver.model.Node;
-import eclipfs.metaserver.servlet.HttpUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 

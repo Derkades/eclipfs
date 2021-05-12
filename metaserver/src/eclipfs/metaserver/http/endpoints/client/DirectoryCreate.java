@@ -1,4 +1,4 @@
-package eclipfs.metaserver.servlet.client;
+package eclipfs.metaserver.http.endpoints.client;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -7,19 +7,18 @@ import com.google.gson.JsonObject;
 import com.google.gson.stream.JsonWriter;
 
 import eclipfs.metaserver.exception.AlreadyExistsException;
+import eclipfs.metaserver.http.ApiError;
+import eclipfs.metaserver.http.HttpUtil;
 import eclipfs.metaserver.http.endpoints.ClientApiEndpoint;
 import eclipfs.metaserver.model.Directory;
-import eclipfs.metaserver.model.File;
 import eclipfs.metaserver.model.User;
-import eclipfs.metaserver.servlet.ApiError;
-import eclipfs.metaserver.servlet.HttpUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-public class FileCreate extends ClientApiEndpoint {
+public class DirectoryCreate extends ClientApiEndpoint {
 
-	public FileCreate() {
-		super("fileCreate", RequestMethod.POST);
+	public DirectoryCreate() {
+		super("directoryCreate", RequestMethod.POST);
 	}
 
 	@Override
@@ -31,32 +30,33 @@ public class FileCreate extends ClientApiEndpoint {
 		}
 
 		final JsonObject json = HttpUtil.readJsonFromRequestBody(request, response);
+
 		if (json == null) {
 			return;
 		}
 
-		final Directory directory = HttpUtil.getJsonDirectory(json, response);
+		final Directory parent = HttpUtil.getJsonDirectory(json, response);
 		final String name = HttpUtil.getJsonString(json, response, "name");
-		if (directory == null || name == null) {
+
+		if (parent == null || name == null) {
 			return;
 		}
 
-		if (directory.contains(name)) {
-			ApiError.NAME_ALREADY_EXISTS.send(response);
-			return;
-		}
-
-		File file;
+		Directory directory;
 		try {
-			file = directory.createFile(name);
+			directory = parent.createDirectory(name);
 		} catch (final AlreadyExistsException e) {
-			throw new IllegalStateException(e);
+			ApiError.DIRECTORY_ALREADY_EXISTS.send(response);
+			return;
 		}
 
-		try (JsonWriter writer = HttpUtil.getJsonWriter(response)) {
-			writer.beginObject().name("file").beginObject();
-			InodeInfo.writeInodeInfoJson(file, writer);
-			writer.endObject().endObject();
+		try (JsonWriter writer = new JsonWriter(response.getWriter())) {
+			writer.beginObject();
+			writer.name("directory");
+			writer.beginObject();
+			InodeInfo.writeInodeInfoJson(directory, writer);
+			writer.endObject();
+			writer.endObject();
 		}
 	}
 

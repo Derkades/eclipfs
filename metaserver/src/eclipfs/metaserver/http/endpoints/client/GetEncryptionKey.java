@@ -1,4 +1,4 @@
-package eclipfs.metaserver.servlet.client;
+package eclipfs.metaserver.http.endpoints.client;
 
 import java.io.IOException;
 import java.sql.SQLException;

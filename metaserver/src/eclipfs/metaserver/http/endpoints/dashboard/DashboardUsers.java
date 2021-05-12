@@ -1,11 +1,11 @@
-package eclipfs.metaserver.servlet.dashboard;
+package eclipfs.metaserver.http.endpoints.dashboard;
 
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
 
+import eclipfs.metaserver.http.HttpUtil;
 import eclipfs.metaserver.model.User;
-import eclipfs.metaserver.servlet.HttpUtil;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

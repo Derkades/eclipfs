@@ -1,4 +1,4 @@
-package eclipfs.metaserver.servlet.client;
+package eclipfs.metaserver.http.endpoints.client;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -8,12 +8,12 @@ import org.springframework.security.crypto.codec.Hex;
 
 import com.google.gson.stream.JsonWriter;
 
+import eclipfs.metaserver.http.ApiError;
+import eclipfs.metaserver.http.HttpUtil;
 import eclipfs.metaserver.http.endpoints.ClientApiEndpoint;
 import eclipfs.metaserver.model.Chunk;
 import eclipfs.metaserver.model.File;
 import eclipfs.metaserver.model.User;
-import eclipfs.metaserver.servlet.ApiError;
-import eclipfs.metaserver.servlet.HttpUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 

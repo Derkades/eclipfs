@@ -1,4 +1,4 @@
-package eclipfs.metaserver.servlet.dashboard;
+package eclipfs.metaserver.http.endpoints.dashboard;
 
 import java.io.IOException;
 

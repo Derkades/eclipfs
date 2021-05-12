@@ -42,22 +42,12 @@ public class Nodes {
 	}
 
 	public static List<OnlineNode> selectNodes(final int count, final Chunk chunk, final TransferType type, final FilterStrategy strategy, final String label) throws SQLException {
-//		final List<OnlineNode> nodes = getAllNodes(chunk, type);
-//		final List<OnlineNode> candidates = nodes.stream().filter(node -> locationGood(node, label, strategy)).collect(Collectors.toList());
 		return selectNodes(count, chunk, type, strategy, node -> locationGood(node, label, strategy));
 	}
 
 	public static List<OnlineNode> selectNodes(final int count, final Chunk chunk, final TransferType type, final FilterStrategy strategy, final Set<String> labels) throws SQLException {
-//		final List<OnlineNode> nodes = getAllNodes(chunk, type);
-//		final List<OnlineNode> candidates = nodes.stream().filter(node -> locationsGood(node, labels, strategy)).collect(Collectors.toList());
 		return selectNodes(count, chunk, type, strategy, node -> locationsGood(node, labels, strategy));
 	}
-
-//	private static List<OnlineNode> getAllNodes(final Chunk chunk, final TransferType type) throws SQLException {
-//		Validate.notNull(chunk, "Chunk is null");
-//		Validate.notNull(type, "Transfer type is null");
-//
-//	}
 
 	private static List<OnlineNode> selectNodes(final int count, final Chunk chunk, final TransferType type, final FilterStrategy strategy, final Predicate<OnlineNode> predicate) throws SQLException {
 		if (count == 0) {
@@ -72,8 +62,6 @@ public class Nodes {
 		}
 
 		Collections.shuffle(allNodes);
-
-//		final List<OnlineNode> candidates = allNodes.stream().filter(predicate).collect(Collectors.toUnmodifiableList());
 
 		final List<OnlineNode> finalSelection = new ArrayList<>(count);
 		final Deque<OnlineNode> fallback = new ArrayDeque<>(allNodes.size());
@@ -99,26 +87,6 @@ public class Nodes {
 		}
 
 		return Collections.unmodifiableList(finalSelection);
-
-//		for (final OnlineNode node : allNodes) {
-//
-//		}
-//
-//		if (!candidates.isEmpty()) {
-//			final int i = ThreadLocalRandom.current().nextInt(0, candidates.size());
-//			return Optional.of(candidates.get(i));
-//		} else {
-//
-//				if (!allNodes.isEmpty()) {
-//					final int i = ThreadLocalRandom.current().nextInt(0, allNodes.size());
-//					return Optional.of(allNodes.get(i));
-//				} else {
-//					return Collections.emptyList();
-//				}
-//			} else {
-//				return Collections.emptyList();
-//			}
-//		}
 	}
 
 	private static boolean locationGood(final Node node, final String label, final FilterStrategy strategy) {

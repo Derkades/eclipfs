@@ -1,4 +1,4 @@
-package eclipfs.metaserver.servlet.node;
+package eclipfs.metaserver.http.endpoints.node;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -8,11 +8,11 @@ import java.sql.SQLException;
 
 import com.google.gson.JsonObject;
 
+import eclipfs.metaserver.http.ApiError;
+import eclipfs.metaserver.http.HttpUtil;
 import eclipfs.metaserver.http.endpoints.NodeApiEndpoint;
 import eclipfs.metaserver.model.Node;
 import eclipfs.metaserver.model.OnlineNode;
-import eclipfs.metaserver.servlet.ApiError;
-import eclipfs.metaserver.servlet.HttpUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
