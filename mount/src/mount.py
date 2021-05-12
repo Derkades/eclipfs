@@ -247,12 +247,14 @@ class Operations(pyfuse3.Operations):
         """
 
         if name == '.':
-            inode = inode_p
+            info = Inode.by_inode(inode_p)
         elif name == '..':
-            inode = self._get_parent(inode)
+            info = Inode.by_inode(inode_p)
+            info = info.parent_obj()
         else:
             info = Inode.by_name(inode_p, name.decode())
-            return self._getattr(info, ctx)
+
+        return self._getattr(info, ctx)
 
 
     async def getattr(self, inode, ctx=None):
