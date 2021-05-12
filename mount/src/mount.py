@@ -782,7 +782,7 @@ def timers(operations: Operations) -> None:
 
 if __name__ == '__main__':
     options = parse_args()
-    init_logging(options.debug)
+    init_logging(options.debug or 'DEBUG' in os.environ)
     key = construct_encryption_key()
 
     operations = Operations(key)
