@@ -10,7 +10,7 @@ public class Tunables {
 
 	public static final int REPLICATION_GOAL = 2;
 
-	public static final int MINIMUM_FREE_SPACE_FOR_UPLOAD = 10_000_000; // 10 MB
+	public static final int MINIMUM_FREE_SPACE_FOR_UPLOAD = 50_000_000; // 50 MB
 
 	public static final int NODE_OFFLINE_TIMEOUT = 30_000;
 
