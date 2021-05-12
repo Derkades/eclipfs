@@ -53,6 +53,4 @@ public class InodeInfo extends ClientApiEndpoint {
 		writer.name("parent").value(inode.getParentId());
 	}
 
-
-
 }

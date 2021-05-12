@@ -137,8 +137,9 @@ public class Directory extends Inode {
 
 	public List<Inode> list() throws SQLException {
 		try (Connection conn = Database.getConnection();
-				PreparedStatement query = conn.prepareStatement("SELECT * FROM inode WHERE parent=?")) {
+				PreparedStatement query = conn.prepareStatement("SELECT * FROM inode WHERE parent=? AND id <> ?")) {
 			query.setLong(1, this.getId());
+			query.setLong(2, Inode.ROOT_INODE);
 			final ResultSet result = query.executeQuery();
 			final List<Inode> children = new ArrayList<>();
 			while (result.next()) {
@@ -156,8 +157,9 @@ public class Directory extends Inode {
 	public void writeEntriesAsJsonDictionary(final JsonWriter writer) throws SQLException, IOException {
 		writer.beginObject();
 		try (Connection conn = Database.getConnection();
-				PreparedStatement query = conn.prepareStatement("SELECT id,name FROM inode WHERE parent=?")) {
+				PreparedStatement query = conn.prepareStatement("SELECT id,name FROM inode WHERE parent=? AND id <> ?")) {
 			query.setLong(1, this.getId());
+			query.setLong(2, Inode.ROOT_INODE);
 			final ResultSet result = query.executeQuery();
 			while (result.next()) {
 				writer.name(result.getString("name")).value(result.getInt("id"));
