@@ -417,7 +417,7 @@ class Operations(pyfuse3.Operations):
         raise(FUSEError(errno.ENOTSUP))
 
 
-    async def setattr(self, inode, attr, fields, fh, ctx):
+    async def setattr(self, inode: int, attr: pyfuse3.EntryAttributes, fields: pyfuse3.SetattrFields, fh: int, ctx: pyfuse3.RequestContext) -> pyfuse3.EntryAttributes:
         """
         Change attributes of inode
 
@@ -438,47 +438,33 @@ class Operations(pyfuse3.Operations):
         The method should return an EntryAttributes instance (containing both the changed
         and unchanged values).
         """
-        log.warning('Ignoring setattr, not yet supported')
-        # raise(FUSEError(errno.ENOTSUP))
-        # raise(NotImplementedError('Setting attributes is not supported'))
-        # if fields.update_size:
-        #     data = self.get_row('SELECT data FROM inodes WHERE id=?', (inode,))[0]
-        #     if data is None:
-        #         data = b''
-        #     if len(data) < attr.st_size:
-        #         data = data + b'\0' * (attr.st_size - len(data))
-        #     else:
-        #         data = data[:attr.st_size]
-        #     self.cursor.execute('UPDATE inodes SET data=?, size=? WHERE id=?',
-        #                         (memoryview(data), attr.st_size, inode))
-        # if fields.update_mode:
-        #     self.cursor.execute('UPDATE inodes SET mode=? WHERE id=?',
-        #                         (attr.st_mode, inode))
+        if fields.update_size:
+            log.warning('Ignoring update_size, not supported')
 
-        # if fields.update_uid:
-        #     self.cursor.execute('UPDATE inodes SET uid=? WHERE id=?',
-        #                         (attr.st_uid, inode))
+        if fields.update_mode:
+            log.warning('Ignoring update_mode, not supported')
 
-        # if fields.update_gid:
-        #     self.cursor.execute('UPDATE inodes SET gid=? WHERE id=?',
-        #                         (attr.st_gid, inode))
+        if fields.update_uid:
+            log.warning('Ignoring update_uid, not supported')
 
-        # # if fields.update_atime:
-        # #     self.cursor.execute('UPDATE inodes SET atime_ns=? WHERE id=?',
-        # #                         (attr.st_atime_ns, inode))
+        if fields.update_gid:
+            log.warning('Ignoring update_gid, not supported')
 
-        # if fields.update_mtime:
-        #     self.cursor.execute('UPDATE inodes SET time=? WHERE id=?',
-        #                         (attr.st_mtime_ns / 1e9, inode))
+        if fields.update_atime:
+            log.warning('Ignoring uptime_atime, not supported')
 
-        # if fields.update_ctime:
-        #     self.cursor.execute('UPDATE inodes SET time=? WHERE id=?',
-        #                         (attr.st_ctime_ns / 1e9, inode))
-        # # else:
-        # #     self.cursor.execute('UPDATE inodes SET ctime_ns=? WHERE id=?',
-        # #                         (int(time()*1e9), inode))
+        if fields.update_mtime:
+            log.warning('Ignoring update_mtime, not supported')
 
-        return await self.getattr(inode)
+        if fields.update_ctime:
+            log.warning('Ignoring update_ctime, not supported')
+
+        info = Inode.by_inode(inode)
+
+        if fields.update_mtime:
+            info.update_mtime(attr.st_mtime_ns // 1e6)
+
+        return self._getattr(info, ctx)
 
 
     async def mknod(self, inode_p, name, mode, rdev, ctx):

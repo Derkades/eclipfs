@@ -48,8 +48,8 @@ public class InodeInfo extends ClientApiEndpoint {
 		writer.name("path").value(inode.getAbsolutePath());
 		writer.name("type").value(inode.isFile() ? "f" : "d");
 		writer.name("size").value(inode.getSize());
-		writer.name("crtime").value(inode.getCrtime());
-		writer.name("mtime").value(inode.getMtime());
+		writer.name("crtime").value(inode.getCreationTime());
+		writer.name("mtime").value(inode.getModificationTime());
 		writer.name("parent").value(inode.getParentId());
 	}
 

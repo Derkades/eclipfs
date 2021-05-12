@@ -20,7 +20,7 @@ public abstract class Inode {
 	private final long id;
 	private long parentId;
 	private String name;
-	private final long ctime;
+	private long ctime;
 	private long mtime;
 
 	protected Inode(final ResultSet result) throws SQLException {
@@ -59,15 +59,25 @@ public abstract class Inode {
 		return this.name;
 	}
 
-	public final long getCrtime() {
+	public final long getCreationTime() {
 		return this.ctime;
 	}
 
-	public final long getMtime() {
+	public final long getModificationTime() {
 		return this.mtime;
 	}
 
-	public synchronized final void setMtime(final long mtime) throws SQLException {
+	public final void setCreationTime(final long ctime) throws SQLException {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("UPDATE inode SET ctime=? WHERE id=?")) {
+			query.setLong(1, ctime);
+			query.setLong(2, this.getId());
+			query.execute();
+			this.ctime = ctime;
+		}
+	}
+
+	public final void setModificationTime(final long mtime) throws SQLException {
 		try (Connection conn = Database.getConnection();
 				PreparedStatement query = conn.prepareStatement("UPDATE inode SET mtime=? WHERE id=?")) {
 			query.setLong(1, mtime);

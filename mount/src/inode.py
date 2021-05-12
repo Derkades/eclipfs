@@ -91,3 +91,15 @@ class Inode:
 
     def children(self):
         return self.response['children'].items()
+
+    def update_mtime(self, mtime: int):
+        data = {
+            'inode': self.inode(),
+            'mtime': mtime
+        }
+        (success, response) = api.post('inodeUpdate', data=data)
+        if not success:
+            if response == 25:
+                raise FUSEError(errno.ENOENT)
+            else:
+                raise FUSEError(errno.EREMOTEIO)

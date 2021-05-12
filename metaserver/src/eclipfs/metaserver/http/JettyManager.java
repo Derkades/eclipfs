@@ -32,6 +32,7 @@ import eclipfs.metaserver.http.endpoints.client.GetEncryptionKey;
 import eclipfs.metaserver.http.endpoints.client.InodeDelete;
 import eclipfs.metaserver.http.endpoints.client.InodeInfo;
 import eclipfs.metaserver.http.endpoints.client.InodeMove;
+import eclipfs.metaserver.http.endpoints.client.InodeUpdate;
 import eclipfs.metaserver.http.endpoints.client.StatFilesystem;
 import eclipfs.metaserver.http.endpoints.dashboard.DashboardFilesystem;
 import eclipfs.metaserver.http.endpoints.dashboard.DashboardNodes;
@@ -58,6 +59,7 @@ public class JettyManager {
 		clientEndpoints.registerEndpoint(new InodeDelete());
 		clientEndpoints.registerEndpoint(new InodeInfo());
 		clientEndpoints.registerEndpoint(new InodeMove());
+		clientEndpoints.registerEndpoint(new InodeUpdate());
 		clientEndpoints.registerEndpoint(new StatFilesystem());
 
 		final EndpointHandler<NodeApiEndpoint> nodeEndpoints = new EndpointHandler<>("/node");
