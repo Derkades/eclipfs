@@ -51,7 +51,7 @@ class Operations(pyfuse3.Operations):
         self.write_buffer = {}
 
 
-    def _get_cipher(self, inode, chunk_index):
+    def _get_cipher(self, inode: int, chunk_index: int):
         key = self.encryption_key
         # The IV does not need to be secret or secure, as long as it is unique. Every chunk is guaranteed to have a
         # unique inode+chunk_index combination.
@@ -60,7 +60,7 @@ class Operations(pyfuse3.Operations):
         return AES.new(key, AES.MODE_CFB, iv)
 
 
-    def _should_process_buffer(self, force):
+    def _should_process_buffer(self, force: bool) -> bool:
         num_entries = len(self.write_buffer)
         log.debug('Write buffer entries: %s', num_entries)
         result = force and num_entries > 0 or not force and num_entries >= config.MAX_WRITE_BUFFER_SIZE
@@ -185,12 +185,12 @@ class Operations(pyfuse3.Operations):
         self.cache_lock.release()
 
 
-    def _obtain_file_handle(self, inode):
+    def _obtain_file_handle(self, inode: int) -> int:
         inode_info = Inode.by_inode(inode)
         return self._obtain_file_handle_nofetch(inode_info), inode_info
 
 
-    def _obtain_file_handle_nofetch(self, inode_info):
+    def _obtain_file_handle_nofetch(self, inode_info: Inode) -> int:
         self.fh_lock.acquire()
         fh = 0
         while fh in self.file_handles:
@@ -202,14 +202,14 @@ class Operations(pyfuse3.Operations):
         return fh
 
 
-    def _release_file_handle(self, fh):
+    def _release_file_handle(self, fh: int) -> None:
         log.debug('release file handle %s', fh)
         self.fh_lock.acquire()
         del self.file_handles[fh]
         self.fh_lock.release()
 
 
-    def _update_file_handle(self, fh):
+    def _update_file_handle(self, fh: int) -> Inode:
         log.debug('update file handle %s', fh)
         self.fh_lock.acquire()
         inode = self.file_handles[fh].inode()
@@ -219,14 +219,14 @@ class Operations(pyfuse3.Operations):
         return inode_info
 
 
-    def _get_fh_info(self, fh):
+    def _get_fh_info(self, fh: int) -> Inode:
         self.fh_lock.acquire()
         info = self.file_handles[fh]
         self.fh_lock.release()
         return info
 
 
-    async def lookup(self, inode_p, name, ctx=None):
+    async def lookup(self, inode_p: int, name: str, ctx: pyfuse3.RequestContext = None) -> pyfuse3.EntryAttributes:
         """
         Look up a directory entry by name and get its attributes.
 
@@ -257,12 +257,12 @@ class Operations(pyfuse3.Operations):
         return self._getattr(info, ctx)
 
 
-    async def getattr(self, inode, ctx=None):
+    async def getattr(self, inode: int, ctx: pyfuse3.RequestContext = None) -> pyfuse3.EntryAttributes:
         info = Inode.by_inode(inode)
         return self._getattr(info, ctx)
 
 
-    def _getattr(self, info, ctx):
+    def _getattr(self, info: Inode, ctx: pyfuse3.RequestContext) -> pyfuse3.EntryAttributes:
         if info.inode() == pyfuse3.ROOT_INODE:
             is_dir = True
         else:
@@ -293,20 +293,20 @@ class Operations(pyfuse3.Operations):
         return entry
 
 
-    async def readlink(self, inode, ctx):
+    async def readlink(self, inode: int, ctx: pyfuse3.RequestContext):
         raise(FUSEError(errno.ENOTSUP)) # Error: not supported
 
 
-    async def opendir(self, inode, ctx):
+    async def opendir(self, inode: int, ctx: pyfuse3.RequestContext):
         (fh, _inode_info) = self._obtain_file_handle(inode)
         return fh
 
 
-    async def releasedir(self, fh):
+    async def releasedir(self, fh: int):
         self._release_file_handle(fh)
 
 
-    async def readdir(self, fh, start_index, token):
+    async def readdir(self, fh: int, start_index: int, token: pyfuse3.ReaddirToken):
         """
         Read entries in open directory fh.
 
@@ -339,7 +339,7 @@ class Operations(pyfuse3.Operations):
                 break
 
 
-    async def unlink(self, inode_p, name,ctx):
+    async def unlink(self, inode_p: int, name: str, ctx: pyfuse3.RequestContext):
         (success, response) = api.post('inodeDelete', data={'inode_p': inode_p, 'name': name.decode()})
         if not success:
             if response == 9:
@@ -352,7 +352,7 @@ class Operations(pyfuse3.Operations):
         log.debug('delete done')
 
 
-    async def rmdir(self, inode_p, name, ctx):
+    async def rmdir(self, inode_p: int, name: str, ctx: pyfuse3.RequestContext):
         (success, response) = api.post('inodeDelete', data={'inode_p': inode_p, 'name': name.decode()})
         if not success:
             if response == 10:
@@ -366,12 +366,12 @@ class Operations(pyfuse3.Operations):
                 raise(FUSEError(errno.EREMOTEIO)) # Remote I/O error
 
 
-    async def symlink(self, inode_p, name, target, ctx):
+    async def symlink(self, inode_p: int, name: str, target: str, ctx: pyfuse3.RequestContext):
         raise(FUSEError(errno.ENOTSUP)) # Error: not supported
 
 
-    async def rename(self, inode_p_old, name_old, inode_p_new, name_new,
-                     flags, ctx):
+    async def rename(self, inode_p_old: int, name_old: str, inode_p_new: int, name_new: str,
+                     flags, ctx: pyfuse3.RequestContext):
         """
         Rename a directory entry.
 
@@ -467,17 +467,12 @@ class Operations(pyfuse3.Operations):
         return self._getattr(info, ctx)
 
 
-    async def mknod(self, inode_p, name, mode, rdev, ctx):
-        raise(NotImplementedError('don\'t even know what this does'))
-        # return await self._create(inode_p, name, mode, ctx, rdev=rdev)
-
-
-    async def mkdir(self, inode_p, name, _mode, ctx):
+    async def mkdir(self, inode_p: int, name: str, _mode, ctx: pyfuse3.RequestContext) -> pyfuse3.EntryAttributes:
         info = Inode.by_mkdir(inode_p, name.decode())
         return self._getattr(info, ctx)
 
 
-    async def statfs(self, ctx):
+    async def statfs(self, ctx: pyfuse3.RequestContext):
         (success, response) = api.get('statFilesystem')
         if not success:
             raise FUSEError(errno.EREMOTEIO)
@@ -502,7 +497,7 @@ class Operations(pyfuse3.Operations):
         return stat_
 
 
-    async def open(self, inode, flags, ctx):
+    async def open(self, inode: int, flags, ctx: pyfuse3.RequestContext):
         """
         Open a inode inode with flags.
 
@@ -516,7 +511,6 @@ class Operations(pyfuse3.Operations):
         open file. The FileInfo instance may also have relevant configuration attributes set; see the
         FileInfo documentation for more information.
         """
-        # self.inode_open_count[inode] += 1
         log.debug('open inode %s flags %s', inode, flags)
 
         # make sure the inode exists and is a file
@@ -528,12 +522,12 @@ class Operations(pyfuse3.Operations):
         return pyfuse3.FileInfo(fh=fh)
 
 
-    async def access(self, inode, mode, ctx):
+    async def access(self, inode: int, mode, ctx: pyfuse3.RequestContext):
         log.debug('access')
         return True
 
 
-    async def create(self, inode_p, name, mode, flags, ctx):
+    async def create(self, inode_p: int, name: str, mode, flags, ctx: pyfuse3.RequestContext):
         """
         Create a file with permissions mode and open it with flags
 
@@ -550,8 +544,7 @@ class Operations(pyfuse3.Operations):
         return (pyfuse3.FileInfo(fh=fh), self._getattr(inode_info, ctx))
 
 
-    # def _download_chunk(self, inode, chunk_index):
-    def _get_chunk_data(self, inode, chunk_index, tries=5):
+    def _get_chunk_data(self, inode: int, chunk_index: int, tries: int = 5):
         """
         LOCK CACHE WHEN USING THIS
 
@@ -621,7 +614,7 @@ class Operations(pyfuse3.Operations):
                 return self._get_chunk_data(inode, chunk_index, tries=(tries - 1))
 
 
-    async def read(self, fh, offset, length):
+    async def read(self, fh: int, offset: int, length: int) -> bytes:
         start_chunk = offset // config.CHUNKSIZE
         end_chunk = (offset+length) // config.CHUNKSIZE
         inode_info = self._get_fh_info(fh)
@@ -649,7 +642,7 @@ class Operations(pyfuse3.Operations):
         return chunks_data[data_offset:data_offset+length]
 
 
-    async def write(self, fh, offset, buf):
+    async def write(self, fh: int, offset: int, buf: bytes) -> int:
         """
         Write buf into fh at off
 
@@ -704,11 +697,11 @@ class Operations(pyfuse3.Operations):
         return len(buf)
 
 
-    async def fsync(self, fh, datasync):
+    async def fsync(self, fh: int, datasync) -> None:
         self._clear_write_buffer(force=True)
 
 
-    async def release(self, fh):
+    async def release(self, fh: int) -> None:
         log.debug('release fh %s', fh)
         self._release_file_handle(fh)
         self._clear_write_buffer(force=True)
@@ -743,7 +736,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def construct_encryption_key():
+def construct_encryption_key() -> str:
     # also serves as a connectivity check
 
     response = api.get('getEncryptionKey')
@@ -765,7 +758,7 @@ def construct_encryption_key():
     return key
 
 
-def clean_read_cache(operations):
+def clean_read_cache(operations: Operations):
     operations.cache_lock.acquire()
 
     to_remove = []
@@ -783,7 +776,7 @@ def clean_read_cache(operations):
     operations.cache_lock.release()
 
 
-def timers(operations):
+def timers(operations: Operations) -> None:
     schedule.every(5).to(10).seconds.do(lambda: clean_read_cache(operations))
     while True:
         schedule.run_pending()

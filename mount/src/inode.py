@@ -46,37 +46,37 @@ class Inode:
             response = response['file']
         self.response = response
 
-    def inode(self):
+    def inode(self) -> int:
         return self.response['inode']
 
-    def name(self):
+    def name(self) -> str:
         return self.response['name']
 
-    def path(self):
+    def path(self) -> str:
         return self.response['path']
 
-    def inode_type(self):
+    def inode_type(self) -> str:
         return self.response['type']
 
-    def is_file(self):
+    def is_file(self) -> bool:
         return self.inode_type() == 'f'
 
-    def is_dir(self):
+    def is_dir(self) -> bool:
         return self.inode_type() == 'd'
 
-    def size(self):
+    def size(self) -> int:
         return self.response['size']
 
-    def crtime(self):
+    def crtime(self) -> int:
         return self.response['crtime']
 
-    def ctime(self):
+    def ctime(self) -> int:
         return self.mtime()
 
-    def mtime(self):
+    def mtime(self) -> int:
         return self.response['mtime']
 
-    def parent_inode(self):
+    def parent_inode(self) -> int:
         return self.response['parent']
 
     def parent_obj(self):
@@ -86,7 +86,7 @@ class Inode:
     def ceildiv(a, b):
         return -(-a // b)
 
-    def chunks_count(self):
+    def chunks_count(self) -> int:
         return self.ceildiv(self.size(), config.CHUNKSIZE)
 
     def children(self):
