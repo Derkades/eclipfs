@@ -38,6 +38,7 @@ public abstract class ClientApiEndpoint extends ApiEndpoint {
 			final String password = new String(decoder.decode(encodedPassword), StandardCharsets.UTF_8);
 			if (optUser.get().verifyPassword(password)) {
 				handle(optUser.get(), request, response);
+				return;
 			}
 		}
 

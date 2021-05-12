@@ -35,6 +35,7 @@ public abstract class NodeApiEndpoint extends ApiEndpoint {
 		final Optional<Node> optNode = Node.byToken(token);
 		if (optNode.isPresent()) {
 			handle(optNode.get(), request, response);
+			return;
 		}
 
 		response.setStatus(HttpServletResponse.SC_FORBIDDEN);
