@@ -16,9 +16,6 @@ import logging
 app = Flask(__name__)
 fs_lock = threading.Lock()
 
-log = logging.getLogger()
-log.setLevel('DEBUG' if 'DEBUG' in env else 'INFO')
-
 def verify_request_auth(typ):
     if 'node_token' not in request.args:
         abort(401, 'Missing node_token')
@@ -218,6 +215,7 @@ def random_subdir(base: Path):
 
 
 def garbage_collect():
+    log.info('Starting garbage collection')
     fs_lock.acquire()
     base = Path(env['DATA_DIR'])
 
@@ -278,6 +276,25 @@ def timers():
         schedule.run_pending()
         sleep(1)
 
+
+def init_logging():
+    formatter = logging.Formatter('%(asctime)s.%(msecs)03d %(threadName)s: '
+                                '[%(name)s] %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+    root_logger = logging.getLogger()
+    if 'DEBUG' in env:
+        handler.setLevel(logging.DEBUG)
+        root_logger.setLevel(logging.DEBUG)
+    else:
+        handler.setLevel(logging.INFO)
+        root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(handler)
+
+    global log
+    log = root_logger
+
+init_logging()
 
 t = threading.Thread(target=timers, args=[])
 t.daemon = True # required to exit nicely on SIGINT
