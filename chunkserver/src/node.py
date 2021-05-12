@@ -272,7 +272,7 @@ def garbage_collect():
 
 def timers():
     announce()
-    schedule.every(7).to(9).seconds.do(announce)
+    schedule.every(13).to(16).seconds.do(announce)
     schedule.every(60).to(120).seconds.do(garbage_collect)
     while True:
         schedule.run_pending()

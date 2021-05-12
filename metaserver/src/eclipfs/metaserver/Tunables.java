@@ -12,7 +12,7 @@ public class Tunables {
 
 	public static final int MINIMUM_FREE_SPACE_FOR_UPLOAD = 10_000_000; // 10 MB
 
-	public static final int NODE_OFFLINE_TIMEOUT = 10_000;
+	public static final int NODE_OFFLINE_TIMEOUT = 30_000;
 
 	public static final long REPLICATION_IDLE_WAIT = 5_000;
 	public static final long REPLICATION_FAST_DELAY = 200;
