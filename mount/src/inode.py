@@ -1,9 +1,11 @@
-import errno
+from typing import Literal
 
-from pyfuse3 import FUSEError # pylint: disable=no-name-in-module
+import errno
+from pyfuse3 import FUSEError  # pylint: disable=no-name-in-module
 
 import api
 import config
+
 
 class Inode:
 
@@ -17,11 +19,13 @@ class Inode:
 
     @staticmethod
     def by_mkdir(inode_p, name):
-        return Inode(api.post('directoryCreate', {'directory': inode_p, 'name': name}))
+        return Inode(api.post('directoryCreate',
+                     {'directory': inode_p, 'name': name}))
 
     @staticmethod
     def by_mkfile(inode_p, name):
-        return Inode(api.post('fileCreate', {'directory': inode_p, 'name': name}))
+        return Inode(api.post('fileCreate',
+                     {'directory': inode_p, 'name': name}))
 
     def __init__(self, response):
         (success, response) = response
@@ -55,7 +59,7 @@ class Inode:
     def path(self) -> str:
         return self.response['path']
 
-    def inode_type(self) -> str:
+    def inode_type(self) -> Literal['f', 'd']:
         return self.response['type']
 
     def is_file(self) -> bool:

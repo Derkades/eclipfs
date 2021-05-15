@@ -1,32 +1,32 @@
 #!/usr/bin/env python3
 import os
 import sys
-
-import pyfuse3
-import errno
-import stat
+from typing import Tuple, Optional, Dict, Any
+import base64
+import threading
+import schedule
 import time
 import logging
-from collections import defaultdict
-from pyfuse3 import FUSEError # pylint: disable=no-name-in-module
+
+import base64
+import hashlib
+from Crypto.Cipher import AES
+
+import requests
+from requests.exceptions import RequestException
+
+import pyfuse3
+import stat
+# from collections import defaultdict
+from pyfuse3 import FUSEError  # pylint: disable=no-name-in-module
+import errno
 from argparse import ArgumentParser
 import trio
 
-import base64
-
-import threading
-import schedule
 import config
 import api
 from inode import Inode
 
-import requests
-from requests.exceptions import RequestException
-import hashlib
-import time
-
-import base64
-from Crypto.Cipher import AES
 
 try:
     import faulthandler
@@ -36,6 +36,7 @@ else:
     faulthandler.enable()
 
 log = logging.getLogger()
+
 
 class Operations(pyfuse3.Operations):
     supports_dot_lookup = True
@@ -50,15 +51,13 @@ class Operations(pyfuse3.Operations):
         self.read_cache = {}
         self.write_buffer = {}
 
-
     def _get_cipher(self, inode: int, chunk_index: int):
         key = self.encryption_key
-        # The IV does not need to be secret or secure, as long as it is unique. Every chunk is guaranteed to have a
-        # unique inode+chunk_index combination.
+        # The IV does not need to be secret or secure, as long as it is unique.
+        # Every chunk is guaranteed to have a unique inode+chunk_index combination.
         # padding (4 bytes) + inode (8 bytes) + chunk_index (4 bytes) = 16 bytes IV
         iv = inode.to_bytes(12, byteorder='big') + chunk_index.to_bytes(4, byteorder='big')
         return AES.new(key, AES.MODE_CFB, iv)
-
 
     def _should_process_buffer(self, force: bool) -> bool:
         num_entries = len(self.write_buffer)
@@ -67,13 +66,11 @@ class Operations(pyfuse3.Operations):
         log.debug('Should process buffer with %s entries force=%s? %s', num_entries, force, result)
         return result
 
-
     def _next_write_buffer_entry(self, force):
         if not self._should_process_buffer(force):
             return None
 
         return next(iter(self.write_buffer.keys()))
-
 
     def _clear_write_buffer(self, force=False):
         self.cache_lock.acquire()
@@ -82,7 +79,7 @@ class Operations(pyfuse3.Operations):
 
         key = self._next_write_buffer_entry(force)
 
-        failure = True # so the loop runs the first time
+        failure = True  # so the loop runs the first time
         while failure:
             failure = False
 
@@ -96,7 +93,8 @@ class Operations(pyfuse3.Operations):
 
                 assert len(chunk_data) == len(chunk_data_encrypted)
 
-                log.debug('going to make chunkUploadInit request for inode %s chunk_index %s with size %s', inode, chunk_index, chunk_data_size)
+                log.debug('going to make chunkUploadInit request for inode %s chunk_index %s with size %s',
+                          inode, chunk_index, chunk_data_size)
 
                 request_data = {
                     'file': inode,
@@ -126,17 +124,21 @@ class Operations(pyfuse3.Operations):
                     for node in response['nodes']:
                         upload_address = node['address']
                         try:
-                            r = requests.post(upload_address, data=chunk_data_encrypted, headers={'Content-Type':'application/octet-stream'})
+                            r = requests.post(upload_address,
+                                              data=chunk_data_encrypted,
+                                              headers={'Content-Type': 'application/octet-stream'})
                             if r.status_code == 200:
                                 success_node_ids.append(node['id'])
                                 log.info('Uploaded to node %s', node['id'])
                             else:
-                                log.warning('Error during upload to node %s, http status code %s, response: %s', node, r.status_code, r.text)
+                                log.warning('Error during upload to node %s, http status code %s, response: %s',
+                                            node, r.status_code, r.text)
                         except RequestException:
                             log.warning('Failed to connect to node %s', node)
-                else: # chunkUploadInit not successful
-                    if response == 2: # file not exists
-                        log.warning('Failed to transfer chunk, file deleted while we were still uploading? Ignoring and removing from write buffer')
+                else:  # chunkUploadInit not successful
+                    if response == 2:  # file not exists
+                        log.warning('Failed to transfer chunk, file deleted while we were still uploading? \
+                                    Ignoring and removing from write buffer')
                         del self.write_buffer[key]
                         break
                     else:
@@ -158,8 +160,9 @@ class Operations(pyfuse3.Operations):
                 if success:
                     log.debug('Finalized upload for chunk %s inode %s', chunk_index, inode)
                 else:
-                    if response == 2: # file not exists
-                        log.warning('Failed to upload chunk, file no longer exists. Deleted in between upload and finalize? Ignoring and removing from write buffer')
+                    if response == 2:  # file not exists
+                        log.warning('Failed to upload chunk, file no longer exists. Deleted in \
+                                    between upload and finalize? Ignoring and removing from write buffer')
                         del self.write_buffer[key]
                         break
                     else:
@@ -167,14 +170,14 @@ class Operations(pyfuse3.Operations):
                         failure = True
                         break
 
-                # mark the chunk we just uploaded as not modified (functioning as read cache)
+                # Mark the chunk we just uploaded as not modified (functioning as read cache)
                 log.debug('upload successful')
 
-                # move from write buffer to read cache
+                # Move from write buffer to read cache
                 del self.write_buffer[key]
                 self.read_cache[key] = (chunk_data, time.time())
 
-                # get new chunk from write buffer for next iteration, if available
+                # Get new chunk from write buffer for next iteration, if available
                 key = self._next_write_buffer_entry(force)
             if failure:
                 log.info('Errors were encountered while clearing the write buffer. Trying again in 5 seconds...')
@@ -184,11 +187,9 @@ class Operations(pyfuse3.Operations):
 
         self.cache_lock.release()
 
-
-    def _obtain_file_handle(self, inode: int) -> int:
+    def _obtain_file_handle(self, inode: int) -> Tuple[int, Inode]:
         inode_info = Inode.by_inode(inode)
         return self._obtain_file_handle_nofetch(inode_info), inode_info
-
 
     def _obtain_file_handle_nofetch(self, inode_info: Inode) -> int:
         self.fh_lock.acquire()
@@ -201,13 +202,11 @@ class Operations(pyfuse3.Operations):
         log.debug('obtain file handle %s', fh)
         return fh
 
-
     def _release_file_handle(self, fh: int) -> None:
         log.debug('release file handle %s', fh)
         self.fh_lock.acquire()
         del self.file_handles[fh]
         self.fh_lock.release()
-
 
     def _update_file_handle(self, fh: int) -> Inode:
         log.debug('update file handle %s', fh)
@@ -218,15 +217,13 @@ class Operations(pyfuse3.Operations):
         self.fh_lock.release()
         return inode_info
 
-
     def _get_fh_info(self, fh: int) -> Inode:
         self.fh_lock.acquire()
         info = self.file_handles[fh]
         self.fh_lock.release()
         return info
 
-
-    async def lookup(self, inode_p: int, name: str, ctx: pyfuse3.RequestContext = None) -> pyfuse3.EntryAttributes:
+    async def lookup(self, inode_p: int, name: bytes, ctx: pyfuse3.RequestContext = None) -> pyfuse3.EntryAttributes:
         """
         Look up a directory entry by name and get its attributes.
 
@@ -256,11 +253,9 @@ class Operations(pyfuse3.Operations):
 
         return self._getattr(info, ctx)
 
-
     async def getattr(self, inode: int, ctx: pyfuse3.RequestContext = None) -> pyfuse3.EntryAttributes:
         info = Inode.by_inode(inode)
         return self._getattr(info, ctx)
-
 
     def _getattr(self, info: Inode, ctx: pyfuse3.RequestContext) -> pyfuse3.EntryAttributes:
         if info.inode() == pyfuse3.ROOT_INODE:
@@ -292,19 +287,15 @@ class Operations(pyfuse3.Operations):
 
         return entry
 
-
     async def readlink(self, inode: int, ctx: pyfuse3.RequestContext):
-        raise(FUSEError(errno.ENOTSUP)) # Error: not supported
-
+        raise(FUSEError(errno.ENOTSUP))  # Error: not supported
 
     async def opendir(self, inode: int, ctx: pyfuse3.RequestContext):
         (fh, _inode_info) = self._obtain_file_handle(inode)
         return fh
 
-
     async def releasedir(self, fh: int):
         self._release_file_handle(fh)
-
 
     async def readdir(self, fh: int, start_index: int, token: pyfuse3.ReaddirToken):
         """
@@ -338,39 +329,35 @@ class Operations(pyfuse3.Operations):
             if not pyfuse3.readdir_reply(token, name.encode(), await self.getattr(inode), i + 1):
                 break
 
-
-    async def unlink(self, inode_p: int, name: str, ctx: pyfuse3.RequestContext):
+    async def unlink(self, inode_p: int, name: bytes, ctx: pyfuse3.RequestContext):
         (success, response) = api.post('inodeDelete', data={'inode_p': inode_p, 'name': name.decode()})
         if not success:
             if response == 9:
-                raise FUSEError(errno.EACCES) # Permission denied
+                raise FUSEError(errno.EACCES)  # Permission denied
             elif response in [22, 23, 25]:
-                raise FUSEError(errno.ENOENT) # No such file or directory. but wait, what?? should not be possible
+                raise FUSEError(errno.ENOENT)  # No such file or directory. but wait, what?? should not be possible
             else:
                 print('unlink error', response)
-                raise(FUSEError(errno.EREMOTEIO)) # Remote I/O error
+                raise(FUSEError(errno.EREMOTEIO))  # Remote I/O error
         log.debug('delete done')
 
-
-    async def rmdir(self, inode_p: int, name: str, ctx: pyfuse3.RequestContext):
+    async def rmdir(self, inode_p: int, name: bytes, ctx: pyfuse3.RequestContext):
         (success, response) = api.post('inodeDelete', data={'inode_p': inode_p, 'name': name.decode()})
         if not success:
             if response == 10:
-                raise FUSEError(errno.ENOTEMPTY) # Directory not empty
+                raise FUSEError(errno.ENOTEMPTY)  # Directory not empty
             elif response == 9:
-                raise FUSEError(errno.EACCES) # Permission denied
-            elif response in [22,23,25]:
-                raise FUSEError(errno.ENOENT) # No such file or directory. but wait, what?? should not be possible
+                raise FUSEError(errno.EACCES)  # Permission denied
+            elif response in [22, 23, 25]:
+                raise FUSEError(errno.ENOENT)  # No such file or directory. but wait, what?? should not be possible
             else:
                 log.warning('rmdir error, response: %s', response)
-                raise(FUSEError(errno.EREMOTEIO)) # Remote I/O error
+                raise(FUSEError(errno.EREMOTEIO))  # Remote I/O error
 
+    async def symlink(self, inode_p: int, name: bytes, target: bytes, ctx: pyfuse3.RequestContext):
+        raise(FUSEError(errno.ENOTSUP))  # Error: not supported
 
-    async def symlink(self, inode_p: int, name: str, target: str, ctx: pyfuse3.RequestContext):
-        raise(FUSEError(errno.ENOTSUP)) # Error: not supported
-
-
-    async def rename(self, inode_p_old: int, name_old: str, inode_p_new: int, name_new: str,
+    async def rename(self, inode_p_old: int, name_old: bytes, inode_p_new: int, name_new: bytes,
                      flags, ctx: pyfuse3.RequestContext):
         """
         Rename a directory entry.
@@ -398,26 +385,32 @@ class Operations(pyfuse3.Operations):
         if flags != 0:
             raise FUSEError(errno.EINVAL)
 
-        (success, response) = api.post('inodeMove', data={'inode_p': inode_p_old, 'name': name_old.decode(), 'new_parent': inode_p_new, 'new_name': name_new.decode()})
+        data = {
+            'inode_p': inode_p_old,
+            'name': name_old.decode(),
+            'new_parent': inode_p_new,
+            'new_name': name_new.decode()
+        }
+        (success, response) = api.post('inodeMove', data=data)
         if not success:
-            if response == 9: # MISSING_WRITE_ACCESS
-                raise(FUSEError(errno.EACCES)) # Permission denied
-            if response == 22: # INODE_NOT_EXISTS
-                raise(FUSEError(errno.ENOENT)) # No such file or directory
-            elif response == 23: # IS_A_FILE
-                raise(FUSEError(errno.EEXIST)) # File exists
-            elif response == 24: # NAME_ALREADY_EXISTS
-                raise(FUSEError(errno.EEXIST)) # File exists
+            if response == 9:  # MISSING_WRITE_ACCESS
+                raise(FUSEError(errno.EACCES))  # Permission denied
+            if response == 22:  # INODE_NOT_EXISTS
+                raise(FUSEError(errno.ENOENT))  # No such file or directory
+            elif response == 23:  # IS_A_FILE
+                raise(FUSEError(errno.EEXIST))  # File exists
+            elif response == 24:  # NAME_ALREADY_EXISTS
+                raise(FUSEError(errno.EEXIST))  # File exists
             else:
-                log.warning('Rname error, response: %s', response)
-                raise(FUSEError(errno.EREMOTEIO)) # Remote I/O error
-
+                log.warning('Rename error, response: %s', response)
+                raise(FUSEError(errno.EREMOTEIO))  # Remote I/O error
 
     async def link(self, inode, new_inode_p, new_name, ctx):
         raise(FUSEError(errno.ENOTSUP))
 
-
-    async def setattr(self, inode: int, attr: pyfuse3.EntryAttributes, fields: pyfuse3.SetattrFields, fh: int, ctx: pyfuse3.RequestContext) -> pyfuse3.EntryAttributes:
+    async def setattr(self, inode: int, attr: pyfuse3.EntryAttributes,
+                      fields: pyfuse3.SetattrFields, fh: int,
+                      ctx: pyfuse3.RequestContext) -> pyfuse3.EntryAttributes:
         """
         Change attributes of inode
 
@@ -463,11 +456,9 @@ class Operations(pyfuse3.Operations):
 
         return self._getattr(info, ctx)
 
-
-    async def mkdir(self, inode_p: int, name: str, _mode, ctx: pyfuse3.RequestContext) -> pyfuse3.EntryAttributes:
+    async def mkdir(self, inode_p: int, name: bytes, _mode, ctx: pyfuse3.RequestContext) -> pyfuse3.EntryAttributes:
         info = Inode.by_mkdir(inode_p, name.decode())
         return self._getattr(info, ctx)
-
 
     async def statfs(self, ctx: pyfuse3.RequestContext):
         (success, response) = api.get('statFilesystem')
@@ -493,7 +484,6 @@ class Operations(pyfuse3.Operations):
 
         return stat_
 
-
     async def open(self, inode: int, flags, ctx: pyfuse3.RequestContext):
         """
         Open a inode inode with flags.
@@ -510,21 +500,19 @@ class Operations(pyfuse3.Operations):
         """
         log.debug('open inode %s flags %s', inode, flags)
 
-        # make sure the inode exists and is a file
+        # Make sure the inode exists and is a file
         (fh, info) = self._obtain_file_handle(inode)
         if info.is_dir():
             self._release_file_handle(fh)
-            raise(FUSEError(errno.EISDIR)) # Error: Is a directory
+            raise(FUSEError(errno.EISDIR))  # Error: Is a directory
 
         return pyfuse3.FileInfo(fh=fh)
-
 
     async def access(self, inode: int, mode, ctx: pyfuse3.RequestContext):
         log.debug('access')
         return True
 
-
-    async def create(self, inode_p: int, name: str, mode, flags, ctx: pyfuse3.RequestContext):
+    async def create(self, inode_p: int, name: bytes, mode, flags, ctx: pyfuse3.RequestContext):
         """
         Create a file with permissions mode and open it with flags
 
@@ -540,22 +528,10 @@ class Operations(pyfuse3.Operations):
         fh = self._obtain_file_handle_nofetch(inode_info)
         return (pyfuse3.FileInfo(fh=fh), self._getattr(inode_info, ctx))
 
-
-    def _get_chunk_data(self, inode: int, chunk_index: int, tries: int = 5):
+    def _get_chunk_data(self, inode: int, chunk_index: int, tries: int = 5) -> Optional[bytes]:
         """
         LOCK CACHE WHEN USING THIS
-
-        Returns:
-            (None, chunk_data)
-            ('apierror', error code)
-            ('chunkservererror', http response)
-            ('checksum', downloaded data)
         """
-
-        # print('cache', int(time.time()) - config.READ_CACHE_TIME)
-        # self.cursor.execute('SELECT inode,chunk_index,modified,last_update FROM chunk_cache')
-        # for row in self.cursor:
-            # print(row['inode'], row['chunk_index'], row['modified'], row['last_update'])
 
         # Try to find chunk in write buffer or read cache
         key = (inode, chunk_index)
@@ -570,7 +546,7 @@ class Operations(pyfuse3.Operations):
             request_data = {
                 'file': inode,
                 'chunk': chunk_index
-            }
+            }  # type: Dict[str, Any]
             if config.PREFERRED_LOCATION:
                 request_data['location'] = config.PREFERRED_LOCATION
 
@@ -578,26 +554,28 @@ class Operations(pyfuse3.Operations):
             if success:
                 download_url = response['url']
                 checksum = response['checksum']
-                node_response = api.get_requests_session().get(download_url) # make request to chunkserver
+                # Make request to chunkserver
+                node_response = api.get_requests_session().get(download_url)
                 if node_response.status_code == 200:
                     chunk_data_encrypted = node_response.content
                     if hashlib.md5(chunk_data_encrypted).hexdigest() == checksum:
                         log.info('Downloaded chunk %s for inode %s', chunk_index, inode)
                         chunk_data = self._get_cipher(inode, chunk_index).decrypt(chunk_data_encrypted)
 
-                        # insert downloaded data into read cache
+                        # Insert downloaded data into read cache
                         self.read_cache[key] = (chunk_data, time.time())
 
                         return chunk_data
                     else:
-                        log.info('Checksum error while downloading chunk, size of downloaded data was %s', len(chunk_data_encrypted))
+                        log.info('Checksum error while downloading chunk, size of downloaded data was %s',
+                                 len(chunk_data_encrypted))
                         if len(chunk_data_encrypted) < 300:
                             print('data:', chunk_data_encrypted)
                 else:
                     log.warning('Chunk server non-200 HTTP response code while downloading data')
                     print(node_response.content.decode())
             else:
-                if response == 15: # chunk not exists
+                if response == 15:  # chunk not exists
                     log.debug(f'chunk {chunk_index} does not exist, returning empty byte array')
                     return b''
                 else:
@@ -610,16 +588,16 @@ class Operations(pyfuse3.Operations):
                 log.warning(f'Error during download, retrying ({tries} tries left).')
                 return self._get_chunk_data(inode, chunk_index, tries=(tries - 1))
 
-
     async def read(self, fh: int, offset: int, length: int) -> bytes:
         start_chunk = offset // config.CHUNKSIZE
         end_chunk = (offset+length) // config.CHUNKSIZE
         inode_info = self._get_fh_info(fh)
         inode = inode_info.inode()
 
-        log.debug('read fh %s, offset %s, len %s, start chunk %s, end chunk %s, inode %s, path %s', fh, offset, length, start_chunk, end_chunk, inode, inode_info.path())
+        log.debug('read fh %s, offset %s, len %s, start chunk %s, end chunk %s, inode %s, path %s',
+                  fh, offset, length, start_chunk, end_chunk, inode, inode_info.path())
 
-        self.cache_lock.acquire() # _get_chunk_data() requires cache lock
+        self.cache_lock.acquire()  # _get_chunk_data() requires cache lock
 
         chunks_data = b''
         for chunk_index in range(start_chunk, end_chunk + 1):
@@ -638,7 +616,6 @@ class Operations(pyfuse3.Operations):
         data_offset = offset % config.CHUNKSIZE
         return chunks_data[data_offset:data_offset+length]
 
-
     async def write(self, fh: int, offset: int, buf: bytes) -> int:
         """
         Write buf into fh at off
@@ -651,7 +628,8 @@ class Operations(pyfuse3.Operations):
         """
         start_chunk = offset // config.CHUNKSIZE
         end_chunk = (offset+len(buf)) // config.CHUNKSIZE
-        log.debug('write fh %s, offset %s, len %s, start chunk %s, end chunk %s', fh, offset, len(buf), start_chunk, end_chunk)
+        log.debug('write fh %s, offset %s, len %s, start chunk %s, end chunk %s',
+                  fh, offset, len(buf), start_chunk, end_chunk)
 
         inode_info = self._get_fh_info(fh)
         inode = inode_info.inode()
@@ -678,7 +656,9 @@ class Operations(pyfuse3.Operations):
         # write modified chunk data back to cache/write buffer
 
         for chunk_index in range(start_chunk, end_chunk + 1):
-            chunk_data = chunks_data[(chunk_index-start_chunk)*config.CHUNKSIZE:(chunk_index-start_chunk+1)*config.CHUNKSIZE]
+            slice_start = (chunk_index-start_chunk)*config.CHUNKSIZE
+            slice_end = (chunk_index-start_chunk+1)*config.CHUNKSIZE
+            chunk_data = chunks_data[slice_start:slice_end]
 
             # add to write cache and remove from read cache if present
             key = (inode, chunk_index)
@@ -693,10 +673,8 @@ class Operations(pyfuse3.Operations):
 
         return len(buf)
 
-
     async def fsync(self, fh: int, datasync) -> None:
         self._clear_write_buffer(force=True)
-
 
     async def release(self, fh: int) -> None:
         log.debug('release fh %s', fh)
@@ -718,6 +696,7 @@ def init_logging(debug=False):
         root_logger.setLevel(logging.INFO)
     root_logger.addHandler(handler)
 
+
 def parse_args():
     '''Parse command line'''
 
@@ -733,7 +712,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def construct_encryption_key() -> str:
+def construct_encryption_key() -> bytes:
     # also serves as a connectivity check
 
     response = api.get('getEncryptionKey')
@@ -799,7 +778,7 @@ if __name__ == '__main__':
     pyfuse3.init(operations, options.mountpoint, fuse_options)
 
     t = threading.Thread(target=timers, args=[operations])
-    t.daemon = True # required to exit nicely on SIGINT
+    t.daemon = True  # Required to exit nicely on SIGINT
     t.start()
 
     log.info('Started successfully')
