@@ -8,7 +8,8 @@ RUN pip3 install \
         requests-toolbelt \
         urllib3 \
         pyfuse3 \
-        pycryptodome
+        pycryptodome \
+        schedule
 
 RUN mkdir /app
 WORKDIR /app
