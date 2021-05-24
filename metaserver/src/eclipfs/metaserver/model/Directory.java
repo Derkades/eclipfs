@@ -12,6 +12,7 @@ import java.util.Optional;
 import com.google.gson.stream.JsonWriter;
 
 import eclipfs.metaserver.Database;
+import eclipfs.metaserver.Tunables;
 import eclipfs.metaserver.Validation;
 import eclipfs.metaserver.exception.AlreadyExistsException;
 
@@ -124,11 +125,12 @@ public class Directory extends Inode {
 		}
 
 		try (Connection conn = Database.getConnection();
-				PreparedStatement query = conn.prepareStatement("INSERT INTO inode (name,parent,is_file,ctime,mtime) VALUES (?,?,'True',?,?) RETURNING *")) {
+				PreparedStatement query = conn.prepareStatement("INSERT INTO inode (name,parent,is_file,ctime,mtime,chunk_size) VALUES (?,?,'True',?,?,?) RETURNING *")) {
 			query.setString(1, name);
 			query.setLong(2, this.getId());
 			query.setLong(3, System.currentTimeMillis());
 			query.setLong(4, System.currentTimeMillis());
+			query.setInt(5, Tunables.DEFAULT_CHUNK_SIZE);
 			final ResultSet result = query.executeQuery();
 			result.next();
 			return new File(result);

@@ -22,6 +22,7 @@ public abstract class Inode {
 	private String name;
 	private long ctime;
 	private long mtime;
+	protected Integer chunkSize;
 
 	protected Inode(final ResultSet result) throws SQLException {
 		this.id = result.getLong("id");
@@ -29,6 +30,7 @@ public abstract class Inode {
 		this.name = result.getString("name");
 		this.ctime = result.getLong("ctime");
 		this.mtime = result.getLong("mtime");
+		this.chunkSize = result.getObject("chunk_size", Integer.class);
 	}
 
 	public abstract boolean isFile();

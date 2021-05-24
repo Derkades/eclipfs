@@ -8,6 +8,7 @@ import com.google.gson.stream.JsonWriter;
 import eclipfs.metaserver.http.HttpUtil;
 import eclipfs.metaserver.http.endpoints.ClientApiEndpoint;
 import eclipfs.metaserver.model.Directory;
+import eclipfs.metaserver.model.File;
 import eclipfs.metaserver.model.Inode;
 import eclipfs.metaserver.model.User;
 import jakarta.servlet.http.HttpServletRequest;
@@ -50,6 +51,9 @@ public class InodeInfo extends ClientApiEndpoint {
 		writer.name("size").value(inode.getSize());
 		writer.name("crtime").value(inode.getCreationTime());
 		writer.name("mtime").value(inode.getModificationTime());
+		if (inode.isFile()) {
+			writer.name("chunk_size").value(((File) inode).getChunkSize());
+		}
 		writer.name("parent").value(inode.getParentId());
 	}
 

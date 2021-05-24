@@ -33,7 +33,7 @@ READ_CACHE_TIME = 30
 ENABLE_WRITEBACK_CACHE = False
 
 # Do not change this for an existing filesystem
-CHUNKSIZE = 1_000_000
+# CHUNKSIZE = 1_000_000
 
 # Do not change, ever.
 ROOT_INODE = 1

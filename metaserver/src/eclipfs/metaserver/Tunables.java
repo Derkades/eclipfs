@@ -2,11 +2,7 @@ package eclipfs.metaserver;
 
 public class Tunables {
 
-	/**
-	 * Chunk size in bytes
-	 * CANNOT BE CHANGED FOR AN EXISTING FILE SYSTEM
-	 */
-	public static final int CHUNKSIZE = 1_000_000; // 1MB
+	public static final int DEFAULT_CHUNK_SIZE = 1_000_000; // 1MB
 
 	public static final int REPLICATION_GOAL = 2;
 

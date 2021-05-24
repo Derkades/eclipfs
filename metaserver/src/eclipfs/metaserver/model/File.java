@@ -23,6 +23,10 @@ public class File extends Inode {
 		return true;
 	}
 
+	public long getChunkSize() {
+		return this.chunkSize;
+	}
+
 	@Override
 	public long getSize() throws SQLException {
 		try (Connection conn = Database.getConnection();

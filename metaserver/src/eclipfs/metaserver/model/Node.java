@@ -14,6 +14,7 @@ import org.apache.commons.lang3.Validate;
 
 import eclipfs.metaserver.Database;
 import eclipfs.metaserver.TransferType;
+import eclipfs.metaserver.Tunables;
 
 public class Node {
 
@@ -50,7 +51,7 @@ public class Node {
 	}
 
 	public String getReadOnlyToken() {
-		return this.token.substring(0, 16);
+		return this.token.substring(0, Tunables.NODE_TOKEN_LENGTH / 2);
 	}
 
 	public String getToken(final TransferType transferType) {

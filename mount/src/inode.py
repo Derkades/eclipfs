@@ -48,6 +48,7 @@ class Inode:
             response = response['directory']
         if 'file' in response:
             response = response['file']
+
         self.response = response
 
     def inode(self) -> int:
@@ -80,6 +81,9 @@ class Inode:
     def mtime(self) -> int:
         return self.response['mtime']
 
+    def chunk_size(self) -> int:
+        return self.response['chunk_size']
+
     def parent_inode(self) -> int:
         return self.response['parent']
 
@@ -91,7 +95,7 @@ class Inode:
         return -(-a // b)
 
     def chunks_count(self) -> int:
-        return self.ceildiv(self.size(), config.CHUNKSIZE)
+        return self.ceildiv(self.size(), self.chunk_size())
 
     def children(self):
         return self.response['children'].items()

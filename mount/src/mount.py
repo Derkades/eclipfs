@@ -279,7 +279,11 @@ class Operations(pyfuse3.Operations):
         entry.st_rdev = 0
         entry.st_size = info.size()
 
-        entry.st_blksize = config.CHUNKSIZE
+        # entry.st_blksize = config.CHUNKSIZE
+        if is_dir:
+            entry.st_blksize = 1_000_000
+        else:
+            entry.st_blksize = info.chunk_size()
         entry.st_blocks = 1 if is_dir else info.chunks_count()
         entry.st_atime_ns = 0
         entry.st_mtime_ns = info.mtime() * 1e6
@@ -467,11 +471,13 @@ class Operations(pyfuse3.Operations):
 
         stat_ = pyfuse3.StatvfsData()
 
-        stat_.f_bsize = config.CHUNKSIZE
-        stat_.f_frsize = config.CHUNKSIZE
+        # stat_.f_bsize = config.CHUNKSIZE
+        # stat_.f_frsize = config.CHUNKSIZE
+        stat_.f_bsize = 1_000_000
+        stat_.f_frsize = 1_000_000
 
-        used_blocks = response['used'] // config.CHUNKSIZE
-        free_blocks = response['free'] // config.CHUNKSIZE
+        used_blocks = response['used'] // stat_.f_bsize
+        free_blocks = response['free'] // stat_.f_bsize
         total_blocks = used_blocks + free_blocks
 
         stat_.f_blocks = total_blocks
@@ -589,9 +595,9 @@ class Operations(pyfuse3.Operations):
                 return self._get_chunk_data(inode, chunk_index, tries=(tries - 1))
 
     async def read(self, fh: int, offset: int, length: int) -> bytes:
-        start_chunk = offset // config.CHUNKSIZE
-        end_chunk = (offset+length) // config.CHUNKSIZE
         inode_info = self._get_fh_info(fh)
+        start_chunk = offset // inode_info.chunk_size()
+        end_chunk = (offset+length) // inode_info.chunk_size()
         inode = inode_info.inode()
 
         log.debug('read fh %s, offset %s, len %s, start chunk %s, end chunk %s, inode %s, path %s',
@@ -613,7 +619,8 @@ class Operations(pyfuse3.Operations):
 
         self.cache_lock.release()
 
-        data_offset = offset % config.CHUNKSIZE
+        # data_offset = offset % config.CHUNKSIZE
+        data_offset = offset % inode_info.chunk_size()
         return chunks_data[data_offset:data_offset+length]
 
     async def write(self, fh: int, offset: int, buf: bytes) -> int:
@@ -626,12 +633,14 @@ class Operations(pyfuse3.Operations):
         has been mounted with the direct_io option, the file system must always write all
         the provided data (i.e., return len(buf)).
         """
-        start_chunk = offset // config.CHUNKSIZE
-        end_chunk = (offset+len(buf)) // config.CHUNKSIZE
+        inode_info = self._get_fh_info(fh)
+        # start_chunk = offset // config.CHUNKSIZE
+        start_chunk = offset // inode_info.chunk_size()
+        # end_chunk = (offset+len(buf)) // config.CHUNKSIZE
+        end_chunk = (offset+len(buf)) // inode_info.chunk_size()
         log.debug('write fh %s, offset %s, len %s, start chunk %s, end chunk %s',
                   fh, offset, len(buf), start_chunk, end_chunk)
 
-        inode_info = self._get_fh_info(fh)
         inode = inode_info.inode()
 
         self.cache_lock.acquire()
@@ -646,18 +655,18 @@ class Operations(pyfuse3.Operations):
 
             # pad chunk with zero bytes if it's not the last chunk, so chunks align properly
             if chunk_index != end_chunk:
-                chunk_data = chunk_data + bytearray(config.CHUNKSIZE - len(chunk_data))
+                chunk_data = chunk_data + bytearray(inode_info.chunk_size() - len(chunk_data))
 
             chunks_data += chunk_data
 
-        data_offset = offset % config.CHUNKSIZE
+        data_offset = offset % inode_info.chunk_size()
         chunks_data = chunks_data[:data_offset] + buf + chunks_data[data_offset+len(buf):]
 
         # write modified chunk data back to cache/write buffer
 
         for chunk_index in range(start_chunk, end_chunk + 1):
-            slice_start = (chunk_index-start_chunk)*config.CHUNKSIZE
-            slice_end = (chunk_index-start_chunk+1)*config.CHUNKSIZE
+            slice_start = (chunk_index-start_chunk)*inode_info.chunk_size()
+            slice_end = (chunk_index-start_chunk+1)*inode_info.chunk_size()
             chunk_data = chunks_data[slice_start:slice_end]
 
             # add to write cache and remove from read cache if present
