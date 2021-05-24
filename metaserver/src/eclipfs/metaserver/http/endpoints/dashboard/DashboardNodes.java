@@ -20,7 +20,7 @@ public class DashboardNodes extends HttpServlet {
 	protected void doGet(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
 		try {
 			response.setContentType("text/html");
-			final String[] columns = {"id", "location", "name", "online", "address", "free space", "stored chunks", "stored chunks size"};
+			final String[] columns = {"id", "location", "name", "online", "address", "free space", "stored chunks", "stored chunks size", "used"};
 			final List<Node> nodes = Node.listNodesDatabase();
 			final Object[][] data = new Object[nodes.size()][columns.length];
 			int row = 0;
@@ -29,17 +29,25 @@ public class DashboardNodes extends HttpServlet {
 				data[row][1] = node.getLocation();
 				data[row][2] = node.getName();
 				final Optional<OnlineNode> online = OnlineNode.getOnlineNodeById(node.getId());
+				long free = 0;
 				if (online.isPresent()) {
 					data[row][3] = "yes";
 					data[row][4] = online.get().getAddress();
-					data[row][5] = StringFormatUtils.formatByteCount(online.get().getFreeSpace());
+					free = online.get().getFreeSpace();
+					data[row][5] = StringFormatUtils.formatByteCount(free);
 				} else {
 					data[row][3] = "no";
 					data[row][4] = "-";
 					data[row][5] = "-";
 				}
 				data[row][6] = node.getStoredChunkCount();
-				data[row][7] = StringFormatUtils.formatByteCount(node.getStoredChunkSize());
+				final long stored = node.getStoredChunkSize();
+				data[row][7] = StringFormatUtils.formatByteCount(stored);
+				if (stored == 0) {
+					data[row][8] = "?";
+				} else {
+					data[row][8] = String.format("%.2f%%", ((float) stored / (free - stored)) * 100);
+				}
 				row++;
 			}
 			Dashboard.writeTable(response.getWriter(), columns, data);
