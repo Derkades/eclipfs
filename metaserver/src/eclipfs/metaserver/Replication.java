@@ -39,7 +39,7 @@ public class Replication {
 			return "Waiting (transfers in progress)";
 		}
 
-		if (queue.isEmpty()) {
+		if (QUEUE.isEmpty()) {
 			return "Idle (nothing to do)";
 		}
 
@@ -50,12 +50,12 @@ public class Replication {
 		}
 	}
 
-	final static Deque<Long> queue = new ArrayDeque<>();
+	private final static Deque<Long> QUEUE = new ArrayDeque<>();
 	static boolean fast = false;
 
 	// for dashboard
 	public static int getQueueSize() {
-		return queue.size();
+		return QUEUE.size();
 	}
 
 	static void run() {
@@ -67,24 +67,24 @@ public class Replication {
 					continue;
 				}
 
-				if (queue.isEmpty()) {
+				if (QUEUE.isEmpty()) {
 					final long start = System.currentTimeMillis();
-					addUndergoalChunks(queue, Tunables.REPLICATION_ADD_AMOUNT);
+					addUndergoalChunks(QUEUE, Tunables.REPLICATION_ADD_AMOUNT);
 					final long time = System.currentTimeMillis() - start;
-					if (queue.isEmpty()) {
+					if (QUEUE.isEmpty()) {
 						LOGGER.info("Queue still empty, going to sleep for a while (took " + time + "ms to find chunks).");
 						Thread.sleep(Tunables.REPLICATION_EMPTY_SLEEP);
 					} else {
-						LOGGER.info("Added " + queue.size() + " chunks to the replication queue (took " + time + "ms).");
+						LOGGER.info("Added " + QUEUE.size() + " chunks to the replication queue (took " + time + "ms).");
 					}
 					continue;
 				}
 
-				fast = queue.size() > Tunables.REPLICATION_FAST_THRESHOLD;
+				fast = QUEUE.size() > Tunables.REPLICATION_FAST_THRESHOLD;
 
-				LOGGER.info("Processing replication queue, " + queue.size() + " entries left.");
+				LOGGER.info("Processing replication queue, " + QUEUE.size() + " entries left.");
 
-				final long chunkId = queue.pop();
+				final long chunkId = QUEUE.pop();
 				final Optional<Chunk> optChunk = Chunk.byId(chunkId);
 				if (optChunk.isEmpty()) {
 					LOGGER.warn("Skipping chunk " + chunkId + ", it has been deleted.");
