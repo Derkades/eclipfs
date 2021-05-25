@@ -1,4 +1,4 @@
-from adoptopenjdk:11-jre
+from adoptopenjdk:16-jre
 
 COPY target/eclipfs.jar /eclipfs.jar
 
