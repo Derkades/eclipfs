@@ -23,7 +23,8 @@ CREATE TABLE "inode" (
   "is_file" boolean NOT NULL,
   "name" text NOT NULL,
   "ctime" bigint NOT NULL,
-  "mtime" bigint NOT NULL
+  "mtime" bigint NOT NULL,
+  "chunk_size" int
 );
 
 CREATE INDEX "inode_parent_idx" ON "inode" ("parent");
