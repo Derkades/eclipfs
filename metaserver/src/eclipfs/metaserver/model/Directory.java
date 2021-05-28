@@ -12,7 +12,7 @@ import java.util.Optional;
 import com.google.gson.stream.JsonWriter;
 
 import eclipfs.metaserver.Database;
-import eclipfs.metaserver.Tunables;
+import eclipfs.metaserver.MetaServer;
 import eclipfs.metaserver.Validation;
 import eclipfs.metaserver.exception.AlreadyExistsException;
 
@@ -130,7 +130,7 @@ public class Directory extends Inode {
 			query.setLong(2, this.getId());
 			query.setLong(3, System.currentTimeMillis());
 			query.setLong(4, System.currentTimeMillis());
-			query.setInt(5, Tunables.DEFAULT_CHUNK_SIZE);
+			query.setInt(5, MetaServer.getDefaultChunkSize());
 			final ResultSet result = query.executeQuery();
 			result.next();
 			return new File(result);

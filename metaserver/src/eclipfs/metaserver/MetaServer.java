@@ -75,6 +75,8 @@ public class MetaServer {
 	private static final byte[] PBKDF2_SALT = "1N8Dx]#%O6)d.ezyGTeIHi)Z=v+rH7|{c.^yOy52>[(<[Lnmb~<}\\d`0.**)tt%H".getBytes();
 	private static final int PBKDF2_ITER = 100000;
 
+	private static final int defaultChunkSize;
+
 	static {
 		String keyString = System.getenv("ENCRYPTION_KEY");
 		if (keyString == null || keyString.equals("")) {
@@ -94,6 +96,9 @@ public class MetaServer {
 		}
 		Validate.isTrue(key.length == 32);
 		ENCRYPTION_KEY_ENCODED = Base64.getEncoder().encodeToString(key);
+
+		defaultChunkSize = System.getenv("CHUNK_SIZE") != null ? Integer.parseInt(System.getenv("CHUNK_SIZE")) : 1_000_000;
+		LOGGER.info("Using chunk size " + defaultChunkSize);
 	}
 
 	public static void main(final String[] args) throws Exception {
@@ -163,6 +168,10 @@ public class MetaServer {
 
 	public static HttpClient getHttpClient() {
 		return httpClient;
+	}
+
+	public static int getDefaultChunkSize() {
+		return defaultChunkSize;
 	}
 
 }

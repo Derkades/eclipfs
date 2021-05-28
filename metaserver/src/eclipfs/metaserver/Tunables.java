@@ -2,8 +2,6 @@ package eclipfs.metaserver;
 
 public class Tunables {
 
-	public static final int DEFAULT_CHUNK_SIZE = 1_000_000; // 1MB
-
 	public static final int REPLICATION_GOAL = 2;
 
 	public static final int MINIMUM_FREE_SPACE_FOR_UPLOAD = 50_000_000; // 50 MB
