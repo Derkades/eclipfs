@@ -46,7 +46,7 @@ public class DashboardNodes extends HttpServlet {
 				if (stored == 0) {
 					data[row][8] = "?";
 				} else {
-					data[row][8] = String.format("%.2f%%", ((float) stored / (free - stored)) * 100);
+					data[row][8] = String.format("%.2f%%", ((float) stored / (free + stored)) * 100);
 				}
 				row++;
 			}
