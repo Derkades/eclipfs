@@ -59,31 +59,33 @@ class Operations(pyfuse3.Operations):
         iv = inode.to_bytes(12, byteorder='big') + chunk_index.to_bytes(4, byteorder='big')
         return AES.new(key, AES.MODE_CFB, iv)
 
-    def _should_process_buffer(self, force: bool) -> bool:
-        num_entries = len(self.write_buffer)
-        log.debug('Write buffer entries: %s', num_entries)
-        result = force and num_entries > 0 or not force and num_entries >= config.MAX_WRITE_BUFFER_SIZE
-        log.debug('Should process buffer with %s entries force=%s? %s', num_entries, force, result)
-        return result
+    def _next_write_buffer_entry(self, force_inode: Optional[int]):
+        if force_inode is not None:
+            log.debug('Force write buffer clear inode %s', force_inode)
+            for key in self.write_buffer.keys():
+                (inode, _chunk_index) = key
+                if inode == force_inode:
+                    return key
+            log.debug('No entries found for inode %s, doing regular buffer clear instead', force_inode)
 
-    def _next_write_buffer_entry(self, force):
-        if not self._should_process_buffer(force):
+        log.debug('Write buffer entries: %s / %s', len(self.write_buffer), config.MAX_WRITE_BUFFER_SIZE)
+
+        if len(self.write_buffer) > config.MAX_WRITE_BUFFER_SIZE:
+            return next(iter(self.write_buffer.keys()))
+        else:
             return None
 
-        return next(iter(self.write_buffer.keys()))
+    def _clear_write_buffer(self, force_inode: Optional[int] = None):
+        log.debug('Processing write buffer (force_inode=%s)', force_inode)
 
-    def _clear_write_buffer(self, force=False):
         self.cache_lock.acquire()
-
-        log.debug('Processing write buffer (force=%s)', force)
-
-        key = self._next_write_buffer_entry(force)
+        key = self._next_write_buffer_entry(force_inode)
 
         failure = True  # so the loop runs the first time
         while failure:
             failure = False
 
-            while key:
+            while key is not None:
                 (chunk_data, _last_update) = self.write_buffer[key]
                 (inode, chunk_index) = key
 
@@ -117,7 +119,7 @@ class Operations(pyfuse3.Operations):
                         failure = True
                         break
 
-                    log.info('Uploading chunk %s for inode %s', chunk_index, inode)
+                    log.debug('Uploading chunk %s for inode %s', chunk_index, inode)
 
                     log.debug('chunkUploadInit request successful, uploading chunk to all chunkservers...')
 
@@ -129,7 +131,7 @@ class Operations(pyfuse3.Operations):
                                               headers={'Content-Type': 'application/octet-stream'})
                             if r.status_code == 200:
                                 success_node_ids.append(node['id'])
-                                log.info('Uploaded to node %s', node['id'])
+                                log.info('Uploaded chunk %s for inode %s to node %s', chunk_index, inode, node['id'])
                             else:
                                 log.warning('Error during upload to node %s, http status code %s, response: %s',
                                             node, r.status_code, r.text)
@@ -177,8 +179,12 @@ class Operations(pyfuse3.Operations):
                 del self.write_buffer[key]
                 self.read_cache[key] = (chunk_data, time.time())
 
+                self.cache_lock.release()
+                # allow a download to run in between, don't lock too long
+                self.cache_lock.acquire()
+
                 # Get new chunk from write buffer for next iteration, if available
-                key = self._next_write_buffer_entry(force)
+                key = self._next_write_buffer_entry(force_inode)
             if failure:
                 log.info('Errors were encountered while clearing the write buffer. Trying again in 5 seconds...')
                 time.sleep(5)
@@ -683,12 +689,13 @@ class Operations(pyfuse3.Operations):
         return len(buf)
 
     async def fsync(self, fh: int, datasync) -> None:
-        self._clear_write_buffer(force=True)
+        log.debug('fsync fh %s', fh)
+        self._clear_write_buffer(force_inode=self._get_fh_info(fh).inode())
 
     async def release(self, fh: int) -> None:
         log.debug('release fh %s', fh)
+        self._clear_write_buffer(force_inode=self._get_fh_info(fh).inode())
         self._release_file_handle(fh)
-        self._clear_write_buffer(force=True)
 
 
 def init_logging(debug=False):
