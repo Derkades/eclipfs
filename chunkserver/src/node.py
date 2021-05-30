@@ -215,57 +215,61 @@ def random_subdir(base: Path):
 
 
 def garbage_collect():
-    log.info('Starting garbage collection')
-    fs_lock.acquire()
-    base = Path(env['DATA_DIR'])
+    try:
+        log.info('Starting garbage collection')
+        fs_lock.acquire()
+        base = Path(env['DATA_DIR'])
 
-    base2 = random_subdir(base)
-    if base2 is None:
-        log.info('Skip garbage collection, not storing any data')
+        base2 = random_subdir(base)
+        if base2 is None:
+            log.info('Skip garbage collection, not storing any data')
+            fs_lock.release()
+            return
+
+        base3 = random_subdir(base2)
+        if base3 is None:
+            log.info('No directories in %s, delete.', base2)
+            base2.rmdir()
+            fs_lock.release()
+            return
+
+        base4 = random_subdir(base3)
+        if base4 is None:
+            log.info('No directories in %s, delete.', base3)
+            base3.rmdir()
+            fs_lock.release()
+            return
+
+        log.debug('Garbage collecting dir %s', base4)
+
+        base_int = int(base2.name + '000000000') + int(base3.name + '000000') + int(base4.name + '000')
+        chunks = [base_int + int(path.name[:-4]) for path in base4.iterdir()]
+
+        if len(chunks) == 0:
+            log.info('No files in %s, delete.', base4)
+            base4.rmdir()
+            fs_lock.release()
+            return
+
+        log.debug('Garbage collection - Making request to metaserver for %s chunks', len(chunks))
+
+        (success, response, error_message) = dsnapi.get('checkGarbage', data={'chunks': chunks})
+        if not success:
+            log.error('Garbage collection error %s %s', response, error_message)
+            fs_lock.release()
+            return
+
+        garbage = response['garbage']
+        log.info('Garbage collection - deleting %s files', len(garbage))
+        for chunk_id in garbage:
+            to_delete = Path(base4, str(chunk_id - base_int) + '.efs')
+            log.debug('deleting file %s', to_delete)
+            to_delete.unlink()
+
         fs_lock.release()
-        return
-
-    base3 = random_subdir(base2)
-    if base3 is None:
-        log.info('No directories in %s, delete.', base2)
-        base2.rmdir()
+    except (requests.ConnectionError, RequestException) as e:
         fs_lock.release()
-        return
-
-    base4 = random_subdir(base3)
-    if base4 is None:
-        log.info('No directories in %s, delete.', base3)
-        base3.rmdir()
-        fs_lock.release()
-        return
-
-    log.debug('Garbage collecting dir %s', base4)
-
-    base_int = int(base2.name + '000000000') + int(base3.name + '000000') + int(base4.name + '000')
-    chunks = [base_int + int(path.name[:-4]) for path in base4.iterdir()]
-
-    if len(chunks) == 0:
-        log.info('No files in %s, delete.', base4)
-        base4.rmdir()
-        fs_lock.release()
-        return
-
-    log.debug('Garbage collection - Making request to metaserver for %s chunks', len(chunks))
-
-    (success, response, error_message) = dsnapi.get('checkGarbage', data={'chunks': chunks})
-    if not success:
-        log.error('Garbage collection error %s %s', response, error_message)
-        fs_lock.release()
-        return
-
-    garbage = response['garbage']
-    log.info('Garbage collection - deleting %s files', len(garbage))
-    for chunk_id in garbage:
-        to_delete = Path(base4, str(chunk_id - base_int) + '.efs')
-        log.debug('deleting file %s', to_delete)
-        to_delete.unlink()
-
-    fs_lock.release()
+        log.warning('Unable to contact metaserver for garbage collection: %s', e)
 
 
 def timers():
