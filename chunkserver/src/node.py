@@ -1,20 +1,23 @@
-from flask import Flask, Response, request, abort, jsonify
 from time import sleep
-import schedule
-import dsnapi
 from os import environ as env
 from pathlib import Path
-from requests.exceptions import RequestException
-import requests
 import random
 import shutil
 import threading
 import hashlib
 import logging
 
+import requests
+from requests.exceptions import RequestException
+from flask import Flask, Response, request, abort
+
+import schedule
+import dsnapi
+
 
 app = Flask(__name__)
 fs_lock = threading.Lock()
+
 
 def verify_request_auth(typ):
     if 'node_token' not in request.args:
@@ -298,8 +301,9 @@ def init_logging():
     global log
     log = root_logger
 
+
 init_logging()
 
 t = threading.Thread(target=timers, args=[])
-t.daemon = True # required to exit nicely on SIGINT
+t.daemon = True  # required to exit nicely on SIGINT
 t.start()

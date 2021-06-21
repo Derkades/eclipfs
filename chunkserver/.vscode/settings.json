@@ -1,0 +1,10 @@
+{
+    "python.linting.pylintArgs": [
+      "--disable=missing-class-docstring,missing-module-docstring",
+      "--good-names=i,j,k,e",
+      "--max-line-length=120"
+    ],
+    "python.linting.pycodestyleArgs": [
+      "--max-line-length=120",
+    ]
+  }
