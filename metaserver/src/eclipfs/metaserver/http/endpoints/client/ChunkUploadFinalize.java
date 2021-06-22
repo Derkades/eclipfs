@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.gson.JsonObject;
 
+import eclipfs.metaserver.MetaServer;
 import eclipfs.metaserver.http.ApiError;
 import eclipfs.metaserver.http.HttpUtil;
 import eclipfs.metaserver.http.endpoints.ClientApiEndpoint;
@@ -74,21 +75,38 @@ public class ChunkUploadFinalize extends ClientApiEndpoint {
 		file.deleteChunk(writing.getIndex());
 		final Chunk chunk = writing.finalizeChunk();
 
-		boolean success = false;
-		for (final OnlineNode node : nodes) {
+		for (int i = 0; i < nodes.size(); i++) {
+			final OnlineNode node = nodes.get(i);
 			if (node.finalizeUpload(writing.getId(), chunk.getId(), LOGGER)) {
 				chunk.addNode(node);
-				success = true;
+
+				// we can already respond to the client that everything is fine
+				// worst case it has still uploaded to one node
+				HttpUtil.writeSuccessTrueJson(response);
+
+				final int asyncStartIndex = i + 1;
+
+				// Start task to ping remaining nodes async
+				MetaServer.getExecutorService().execute(() -> {
+					for (int j = asyncStartIndex; j < nodes.size(); j++) {
+						final OnlineNode node2 = nodes.get(j);
+						try {
+							if (node2.finalizeUpload(writing.getId(), chunk.getId(), LOGGER)) {
+								chunk.addNode(node2);
+							} else {
+								LOGGER.warn("Failed delayed finalize");
+							}
+						} catch (IOException | SQLException e) {
+							LOGGER.warn("Failed delayed finalize", e);
+						}
+					}
+				});
+				return;
 			}
 		}
 
-		// As long as at least one node worked, we're good
-		if (success) {
-			HttpUtil.writeSuccessTrueJson(response);
-		} else {
-			ApiError.UPLOAD_FINALIZE_FAILED.send(response);
-			return;
-		}
+		// we've tried all nodes, nothing worked
+		ApiError.UPLOAD_FINALIZE_FAILED.send(response);
 	}
 
 }

@@ -132,9 +132,10 @@ public class OnlineNode extends Node {
 			if (response.statusCode() == 200) {
 				return true;
 			} else {
-				logger.error("Response code " + response.statusCode() + " while trying to finalize a chunk upload");
+				logger.error("Response code {} while trying to finalize a chunk upload", response.statusCode());
+				logger.error("tempId: {} chunkId: {}", tempId, chunkId);
 				if (response.body().length() < 1000) {
-					logger.warn("Response: %s", response.body());
+					logger.warn("Response: {}", response.body());
 				} else {
 					logger.warn("Response is too long to print");
 				}

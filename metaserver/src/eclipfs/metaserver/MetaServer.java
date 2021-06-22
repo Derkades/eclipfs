@@ -110,7 +110,12 @@ public class MetaServer {
 		httpServer = new JettyManager(7779); // TODO configurable port
 		httpServer.start();
 
-		THREAD_POOL.execute(Replication::run);
+		new Thread() {
+			@Override
+			public void run() {
+				THREAD_POOL.execute(Replication::run);
+			}
+		}.start();
 
 		final LineReader reader = LineReaderBuilder.builder().build();
 		while (true) {
@@ -175,6 +180,10 @@ public class MetaServer {
 
 	public static int getDefaultChunkSize() {
 		return defaultChunkSize;
+	}
+
+	public static ExecutorService getExecutorService() {
+		return THREAD_POOL;
 	}
 
 }
