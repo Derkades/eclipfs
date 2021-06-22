@@ -6,6 +6,7 @@ import shutil
 import threading
 import hashlib
 import logging
+from uuid import uuid4
 
 import requests
 from requests.exceptions import RequestException
@@ -17,6 +18,7 @@ import dsnapi
 
 app = Flask(__name__)
 fs_lock = threading.Lock()
+temp_uuid = uuid4().hex
 
 
 def verify_request_auth(typ):
@@ -52,7 +54,7 @@ def get_chunk_path(chunk_id, mkdirs=False) -> Path:
 
 def get_temp_path(temp_id) -> Path:
     # prevent directory traversal by ensuring temp_id is int
-    return Path('/tmp/eclipfs-chunkserver-' + str(int(temp_id)) + '.efs')
+    return Path('/tmp/eclipfs-chunkserver-' + temp_uuid + '-' + str(int(temp_id)) + '.efs')
 
 
 def read_chunk(chunk_id):
