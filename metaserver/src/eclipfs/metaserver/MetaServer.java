@@ -38,6 +38,7 @@ import eclipfs.metaserver.command.UserAddCommand;
 import eclipfs.metaserver.command.UserListCommand;
 import eclipfs.metaserver.http.JettyManager;
 import eclipfs.metaserver.http.PasswordChecker;
+import eclipfs.metaserver.migration.Migrations;
 import eclipfs.metaserver.model.Directory;
 import eclipfs.metaserver.model.Inode;
 
@@ -102,6 +103,8 @@ public class MetaServer {
 	}
 
 	public static void main(final String[] args) throws Exception {
+		Migrations.runMigrations();
+
 		WORKING_DIRECTORY = Inode.getRootInode();
 
 		httpServer = new JettyManager(7779); // TODO configurable port

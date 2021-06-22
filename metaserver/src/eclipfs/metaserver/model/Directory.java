@@ -28,11 +28,6 @@ public class Directory extends Inode {
 	}
 
 	@Override
-	public long getSize() {
-		return 0;
-	}
-
-	@Override
 	public void delete() throws SQLException {
 		if (!isEmpty()) {
 			throw new UnsupportedOperationException("Cannot delete directory, it is not empty");
@@ -94,7 +89,7 @@ public class Directory extends Inode {
 		}
 
 		try (Connection conn = Database.getConnection();
-				PreparedStatement query = conn.prepareStatement("INSERT INTO inode (name,parent,is_file,ctime,mtime) VALUES (?,?,'False',?,?) RETURNING *")) {
+				PreparedStatement query = conn.prepareStatement("INSERT INTO inode (name,parent,is_file,ctime,mtime,size) VALUES (?,?,'False',?,?,0) RETURNING *")) {
 			query.setString(1, name);
 			query.setLong(2, this.getId());
 			query.setLong(3, System.currentTimeMillis());
@@ -125,7 +120,7 @@ public class Directory extends Inode {
 		}
 
 		try (Connection conn = Database.getConnection();
-				PreparedStatement query = conn.prepareStatement("INSERT INTO inode (name,parent,is_file,ctime,mtime,chunk_size) VALUES (?,?,'True',?,?,?) RETURNING *")) {
+				PreparedStatement query = conn.prepareStatement("INSERT INTO inode (name,parent,is_file,ctime,mtime,chunk_size,size) VALUES (?,?,'True',?,?,?,0) RETURNING *")) {
 			query.setString(1, name);
 			query.setLong(2, this.getId());
 			query.setLong(3, System.currentTimeMillis());

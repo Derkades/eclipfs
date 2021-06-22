@@ -39,7 +39,6 @@ CREATE TABLE "chunk" (
   "index" int NOT NULL,
   "size" bigint NOT NULL,
   "checksum" bytea NOT NULL,
-  -- "token" text NOT NULL UNIQUE,
   UNIQUE("index", "file")
 );
 
@@ -63,6 +62,14 @@ CREATE TABLE "chunk_node" (
 );
 
 CREATE INDEX "chunk_node_chunk_node_idx" ON "chunk_node" ("chunk", "node");
+
+CREATE TABLE "meta" (
+  "key" text NOT NULL,
+  "value_str" text,
+  "value_int" bigint
+);
+
+INSERT INTO "meta" ("key", "value_int") VALUES ('db_version', 0);
 
 -- Allow using TABLESAMPLE SYSTEM_ROWS(n)
 -- https://www.postgresql.org/docs/current/tsm-system-rows.html

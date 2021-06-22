@@ -2,7 +2,6 @@
 import os
 import sys
 from typing import Tuple, Optional, Dict, Any
-import base64
 import threading
 import schedule
 import time
@@ -17,7 +16,6 @@ from requests.exceptions import RequestException
 
 import pyfuse3
 import stat
-# from collections import defaultdict
 from pyfuse3 import FUSEError  # pylint: disable=no-name-in-module
 import errno
 from argparse import ArgumentParser
@@ -49,6 +47,7 @@ class Operations(pyfuse3.Operations):
         self.file_handles = {}
         self.read_cache = {}
         self.write_buffer = {}
+        self.size_override = {}
         self.global_cache_lock = threading.Lock()
         self.cache_locks: Dict[int, threading.Lock] = {}
 
@@ -91,7 +90,6 @@ class Operations(pyfuse3.Operations):
             del self.cache_locks[inode]
 
         self.global_cache_lock.release()
-
 
     def _get_cipher(self, inode: int, chunk_index: int):
         key = self.encryption_key
@@ -141,7 +139,7 @@ class Operations(pyfuse3.Operations):
             assert len(chunk_data) == len(chunk_data_encrypted)
 
             log.debug('going to make chunkUploadInit request for inode %s chunk_index %s with size %s',
-                        inode, chunk_index, chunk_data_size)
+                      inode, chunk_index, chunk_data_size)
 
             request_data = {
                 'file': inode,
@@ -160,7 +158,8 @@ class Operations(pyfuse3.Operations):
                 success_node_ids = []
                 nodes = response['nodes']
                 if len(nodes) == 0:
-                    log.warning("Can't upload chunk, didn't receive any nodes from metaserver. Trying again in 3 seconds")
+                    log.warning("Can't upload chunk, didn't receive any nodes from metaserver."
+                                " Trying again in 3 seconds")
                     time.sleep(3)
                     continue
 
@@ -172,8 +171,8 @@ class Operations(pyfuse3.Operations):
                     upload_address = node['address']
                     try:
                         r = requests.post(upload_address,
-                                            data=chunk_data_encrypted,
-                                            headers={'Content-Type': 'application/octet-stream'})
+                                          data=chunk_data_encrypted,
+                                          headers={'Content-Type': 'application/octet-stream'})
                         if r.status_code == 200:
                             success_node_ids.append(node['id'])
                             log.info('Uploaded chunk %s for inode %s to node %s', chunk_index, inode, node['id'])
@@ -190,12 +189,14 @@ class Operations(pyfuse3.Operations):
                     self.release_cache(inode)
                     break
                 else:
-                    log.warning('Unexpected chunkUploadInit failure, response: %s. Trying again in 3 seconds.', response)
+                    log.warning('Unexpected chunkUploadInit failure, response: %s. Trying again in 3 seconds.',
+                                response)
                     time.sleep(3)
                     continue
 
             if len(success_node_ids) == 0:
-                log.warning("Can't upload chunk, metaserver didn't return any nodes for us to upload to. Trying again in 3 seconds.")
+                log.warning("Can't upload chunk, metaserver didn't return any nodes for us to upload to."
+                            " Trying again in 3 seconds.")
                 time.sleep(3)
                 continue
 
@@ -226,6 +227,20 @@ class Operations(pyfuse3.Operations):
             self.global_cache_lock.acquire()
             del self.write_buffer[key]
             self.read_cache[key] = (chunk_data, time.time())
+
+            if inode in self.size_override:
+                log.debug('size was overridden, updating on metaserver...')
+                new_size = self.size_override[inode]
+                request_data = {
+                    'inode': inode,
+                    'size': new_size,
+                }
+                (success, _response) = api.post('inodeUpdate', data=request_data)
+                if not success:
+                    raise Exception('Failed to update file size on metaserver')
+                del self.size_override[inode]
+                log.info('Sent increased size to metaserver')
+
             self.release_cache(inode, global_lock=False)
             self.global_cache_lock.release()
 
@@ -322,7 +337,7 @@ class Operations(pyfuse3.Operations):
         entry.st_uid = config.MOUNT_UID
         entry.st_gid = config.MOUNT_GID
         entry.st_rdev = 0
-        entry.st_size = info.size()
+        entry.st_size = self.size_override[info.inode()] if info.inode() in self.size_override else info.size()
 
         # entry.st_blksize = config.CHUNKSIZE
         if is_dir:
@@ -455,7 +470,7 @@ class Operations(pyfuse3.Operations):
                 raise(FUSEError(errno.EREMOTEIO))  # Remote I/O error
 
     async def link(self, inode, new_inode_p, new_name, ctx):
-        raise(FUSEError(errno.ENOTSUP))
+        raise FUSEError(errno.ENOTSUP)
 
     async def setattr(self, inode: int, attr: pyfuse3.EntryAttributes,
                       fields: pyfuse3.SetattrFields, fh: int,
@@ -480,8 +495,6 @@ class Operations(pyfuse3.Operations):
         The method should return an EntryAttributes instance (containing both the changed
         and unchanged values).
         """
-        if fields.update_size:
-            log.warning('Ignoring update_size, not supported')
 
         if fields.update_mode:
             log.warning('Ignoring update_mode, not supported')
@@ -498,12 +511,35 @@ class Operations(pyfuse3.Operations):
         if fields.update_ctime:
             log.warning('Ignoring update_ctime, not supported')
 
+        self.lock_cache(inode)
+
         info = Inode.by_inode(inode)
 
-        if fields.update_mtime:
-            info.update_mtime(attr.st_mtime_ns // 1e6)
+        update_data = {}
 
-        return self._getattr(info, ctx)
+        if fields.update_size:
+            log.warning('update_size %s', attr.st_size)
+            old_size = self.size_override[inode] if inode in self.size_override else info.size()
+            if attr.st_size > old_size:
+                raise NotImplementedError('increasing file size in setattr() not supported')
+            elif attr.st_size < old_size:
+                log.info('decreasing file size')
+                update_data['size'] = attr.st_size
+                if inode in self.size_override:
+                    del self.size_override[inode]
+
+        if fields.update_mtime:
+            update_data['mtime'] = (attr.st_mtime_ns // 1e6)
+
+        if len(update_data) > 0:
+            log.debug('setattr: Updating inode with data %s', update_data)
+            info.update(update_data)
+        else:
+            log.debug('setattr: Nothing to do')
+
+        attr: pyfuse3.EntryAttributes = self._getattr(info, ctx)
+        self.release_cache(inode)
+        return attr
 
     async def mkdir(self, inode_p: int, name: bytes, _mode, ctx: pyfuse3.RequestContext) -> pyfuse3.EntryAttributes:
         info = Inode.by_mkdir(inode_p, name.decode())
@@ -551,11 +587,21 @@ class Operations(pyfuse3.Operations):
         """
         log.debug('open inode %s flags %s', inode, flags)
 
+        if flags & os.O_CREAT != 0:
+            raise NotImplementedError('O_CREAT flag not supported on open()')
+
+        if flags & os.O_EXCL != 0:
+            raise NotImplementedError('O_CREAT flag not supported on open()')
+
         # Make sure the inode exists and is a file
         (fh, info) = self._obtain_file_handle(inode)
         if info.is_dir():
             self._release_file_handle(fh)
-            raise(FUSEError(errno.EISDIR))  # Error: Is a directory
+            raise FUSEError(errno.EISDIR)  # Error: Is a directory
+
+        if flags & os.O_TRUNC != 0:
+            log.debug('truncating file on open')
+            self.size_override[inode] = 0
 
         return pyfuse3.FileInfo(fh=fh)
 
@@ -619,11 +665,12 @@ class Operations(pyfuse3.Operations):
                         return chunk_data
                     else:
                         log.error('Checksum error while downloading chunk %s.%s, size of downloaded data was %s',
-                                 inode, chunk_index, len(chunk_data_encrypted))
+                                  inode, chunk_index, len(chunk_data_encrypted))
                         if len(chunk_data_encrypted) < 300:
                             log.error('data: %s', chunk_data_encrypted)
                 else:
-                    log.error('Chunk server non-200 HTTP response code while downloading data %s.%s %s', inode, chunk_index, node_response.content.decode())
+                    log.error('Chunk server non-200 HTTP response code while downloading data %s.%s %s',
+                              inode, chunk_index, node_response.content.decode())
             else:
                 if response == 15:  # chunk not exists
                     log.debug('chunk %s.%s does not exist, returning empty byte array', inode, chunk_index)
@@ -682,6 +729,9 @@ class Operations(pyfuse3.Operations):
         log.debug('write fh %s, offset %s, len %s, start chunk %s, end chunk %s',
                   fh, offset, len(buf), start_chunk, end_chunk)
 
+        if len(buf) < 100:
+            log.debug('buf: %s', buf)
+
         inode = inode_info.inode()
 
         self.lock_cache(inode)
@@ -716,6 +766,14 @@ class Operations(pyfuse3.Operations):
 
             if key in self.read_cache:
                 del self.read_cache[key]
+
+        old_size = self.size_override[inode] if inode in self.size_override else inode_info.size()
+
+        if offset + len(buf) > old_size:
+            new_size = offset + len(buf)
+            log.debug('With this write, size of inode is now larger. Increasing size from %s to %s',
+                        old_size, new_size)
+            self.size_override[inode] = new_size
 
         self.release_cache(inode)
 

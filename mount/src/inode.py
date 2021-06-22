@@ -100,11 +100,8 @@ class Inode:
     def children(self):
         return self.response['children'].items()
 
-    def update_mtime(self, mtime: int):
-        data = {
-            'inode': self.inode(),
-            'mtime': mtime
-        }
+    def update(self, data):
+        data['inode'] = self.inode()
         (success, response) = api.post('inodeUpdate', data=data)
         if not success:
             if response == 25:

@@ -31,10 +31,22 @@ public class InodeUpdate extends ClientApiEndpoint {
 			return;
 		}
 
-		final Long modificationTime = HttpUtil.getJsonLong(json, response, "mtime");
-		if (modificationTime != null) {
+		if (json.has("mtime")) {
+			final Long modificationTime = HttpUtil.getJsonLong(json, response, "mtime");
+			if (modificationTime == null) {
+				return;
+			}
 			inode.setModificationTime(modificationTime);
 		}
+
+		if (json.has("size")) {
+			final Long size = HttpUtil.getJsonLong(json, response, "size");
+			if (size == null) {
+				return;
+			}
+			inode.setSize(size);
+		}
+
 		HttpUtil.writeSuccessTrueJson(response);
 	}
 

@@ -28,22 +28,6 @@ public class File extends Inode {
 	}
 
 	@Override
-	public long getSize() throws SQLException {
-		try (Connection conn = Database.getConnection();
-				final PreparedStatement query = conn.prepareStatement("SELECT SUM(size) FROM \"chunk\" WHERE file=?")) {
-			query.setLong(1, this.getId());
-			final ResultSet result = query.executeQuery();
-			if (result.next()) {
-				return result.getLong(1);
-			} else {
-				// No result likely means no chunks uploaded (yet).
-				// it could also mean a severe bug, hopefully not.
-				return 0;
-			}
-		}
-	}
-
-	@Override
 	public void delete() throws SQLException {
 		try (Connection conn = Database.getConnection();
 				final PreparedStatement query = conn.prepareStatement("DELETE FROM inode WHERE id=?")) {
@@ -62,15 +46,14 @@ public class File extends Inode {
 			try (Connection conn = Database.getConnection();
 					PreparedStatement query = conn.prepareStatement(
 							"INSERT INTO \"chunk_writing\""
-							+ "(file, index, size, checksum, time) VALUES (?,?,?,?,?) "
+							+ "(file, index, checksum, time) VALUES (?,?,?,?) "
 							+ "ON CONFLICT(file, index) DO UPDATE SET time=? "
 							+ "RETURNING *")) {
 				query.setLong(1, this.getId());
 				query.setInt(2, index);
-				query.setLong(3, size);
-				query.setBytes(4, checksum);
+				query.setBytes(3, checksum);
+				query.setLong(4, System.currentTimeMillis() / 1000);
 				query.setLong(5, System.currentTimeMillis() / 1000);
-				query.setLong(6, System.currentTimeMillis() / 1000);
 //				query.setString(5, RandomStringUtils.randomAlphanumeric(128));
 				final ResultSet result = query.executeQuery();
 				result.next();

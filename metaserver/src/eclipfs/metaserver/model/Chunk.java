@@ -19,9 +19,7 @@ public class Chunk {
 
 	private final long id;
 	private final int index;
-	private long size;
 	private final byte[] checksum;
-//	private final String token;
 
 	private transient final File file;
 
@@ -30,10 +28,8 @@ public class Chunk {
 		Validate.notNull(result, "ResultSet is null");
 		this.id = result.getLong("id");
 		this.index = result.getInt("index");
-		this.size = result.getLong("size");
 		Validate.isTrue(result.getLong("file") == file.getId());
 		this.checksum = result.getBytes("checksum");
-//		this.token = result.getString("token");
 		this.file = file;
 	}
 
@@ -43,20 +39,6 @@ public class Chunk {
 
 	public int getIndex() {
 		return this.index;
-	}
-
-	public long getSize() {
-		return this.size;
-	}
-
-	public void setSize(final long size) throws SQLException {
-		try (Connection conn = Database.getConnection();
-				PreparedStatement query = conn.prepareStatement("UPDATE chunk SET size=? WHERE id=?")) {
-			query.setLong(1, size);
-			query.setLong(2, this.id);
-			query.execute();
-			this.size = size;
-		}
 	}
 
 	public File getFile() {
@@ -70,10 +52,6 @@ public class Chunk {
 	public String getChecksumHex() {
 		return new String(Hex.encode(this.getChecksum()));
 	}
-
-//	public String getToken() {
-//		return this.token;
-//	}
 
 	public List<Long> getNodeIds() throws SQLException {
 		try (Connection conn = Database.getConnection();
@@ -111,16 +89,7 @@ public class Chunk {
 //			query.execute();
 //		}
 //	}
-//
-//	public void updateSize(final long size) throws SQLException {
-//		try (Connection conn = Database.getConnection();
-//				PreparedStatement query = conn.prepareStatement("UPDATE \"chunk\" SET size=? WHERE id=?")){
-//			query.setLong(1, size);
-//			query.setLong(2, this.getId());
-//			query.execute();
-//		}
-//	}
-//
+
 	public void addNode(final Node node) throws SQLException {
 		Validate.notNull(node, "Node is null");
 		try (Connection conn = Database.getConnection();
@@ -167,7 +136,7 @@ public class Chunk {
 
 	public static long getTotalSizeEstimate() throws SQLException {
 		try (Connection conn = Database.getConnection();
-				PreparedStatement query = conn.prepareStatement("SELECT SUM(size) FROM chunk")) {
+				PreparedStatement query = conn.prepareStatement("SELECT SUM(size) FROM inode WHERE is_file = 'true'")) {
 			final ResultSet result = query.executeQuery();
 			result.next();
 			return result.getLong(1) * Tunables.REPLICATION_GOAL;

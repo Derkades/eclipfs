@@ -23,6 +23,7 @@ public abstract class Inode {
 	private long ctime;
 	private long mtime;
 	protected Integer chunkSize;
+	private long size;
 
 	protected Inode(final ResultSet result) throws SQLException {
 		this.id = result.getLong("id");
@@ -31,10 +32,10 @@ public abstract class Inode {
 		this.ctime = result.getLong("ctime");
 		this.mtime = result.getLong("mtime");
 		this.chunkSize = result.getObject("chunk_size", Integer.class);
+		this.size = result.getLong("size");
 	}
 
 	public abstract boolean isFile();
-	public abstract long getSize() throws SQLException;
 	public abstract void delete() throws SQLException;
 
 	public final long getId() {
@@ -86,6 +87,20 @@ public abstract class Inode {
 			query.setLong(2, this.getId());
 			query.execute();
 			this.mtime = mtime;
+		}
+	}
+
+	public long getSize() {
+		return this.size;
+	}
+
+	public void setSize(final long size) throws SQLException {
+		try (Connection conn = Database.getConnection();
+				PreparedStatement query = conn.prepareStatement("UPDATE inode SET size=? WHERE id=?")) {
+			query.setLong(1, size);
+			query.setLong(2, this.getId());
+			query.execute();
+			this.size = size;
 		}
 	}
 

@@ -15,7 +15,6 @@ public class WritingChunk {
 
 	private final long id;
 	private final int index;
-	private final long size;
 	private final byte[] checksum;
 
 	private final File file;
@@ -25,7 +24,6 @@ public class WritingChunk {
 		Validate.notNull(result, "ResultSet is null");
 		this.id = result.getLong("id");
 		this.index = result.getInt("index");
-		this.size = result.getLong("size");
 		Validate.isTrue(result.getLong("file") == file.getId());
 		this.checksum = result.getBytes("checksum");
 //		this.token = result.getString("token");
@@ -39,20 +37,6 @@ public class WritingChunk {
 	public int getIndex() {
 		return this.index;
 	}
-
-	public long getSize() {
-		return this.size;
-	}
-
-//	public void setSize(final long size) throws SQLException {
-//		try (Connection conn = Database.getConnection();
-//				PreparedStatement query = conn.prepareStatement("UPDATE chunk SET size=? WHERE id=?")) {
-//			query.setLong(1, size);
-//			query.setLong(2, this.id);
-//			query.execute();
-//			this.size = size;
-//		}
-//	}
 
 	public File getFile() {
 		return this.file;
@@ -74,11 +58,10 @@ public class WritingChunk {
 					query.setLong(1, this.getId());
 					query.execute();
 				}
-				try (PreparedStatement query = conn.prepareStatement("INSERT INTO \"chunk\" (file, index, size, checksum) VALUES (?,?,?,?) RETURNING *")) {
+				try (PreparedStatement query = conn.prepareStatement("INSERT INTO \"chunk\" (file, index, checksum) VALUES (?,?,?) RETURNING *")) {
 					query.setLong(1, this.getFile().getId());
 					query.setInt(2, this.getIndex());
-					query.setLong(3, this.getSize());
-					query.setBytes(4, this.getChecksum());
+					query.setBytes(3, this.getChecksum());
 					final ResultSet result = query.executeQuery();
 					result.next();
 					return new Chunk(this.getFile(), result);
