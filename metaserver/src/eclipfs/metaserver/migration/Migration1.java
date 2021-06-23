@@ -33,6 +33,10 @@ public class Migration1 extends Migration {
 				}
 			}
 		}
+		logger.info("Set size to 0 for all remaining inodes (empty files)");
+		try (PreparedStatement query = connection.prepareStatement("UPDATE inode SET size = 0 WHERE \"is_file\" = 't' AND size IS NULL")) {
+			query.execute();
+		}
 		logger.info("Make size column NOT NULL ");
 		try (PreparedStatement query = connection.prepareStatement("ALTER TABLE \"inode\" ALTER \"size\" SET NOT NULL")) {
 			query.execute();
