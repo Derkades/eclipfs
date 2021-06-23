@@ -20,7 +20,7 @@ public class DashboardNodes extends HttpServlet {
 	protected void doGet(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
 		try {
 			response.setContentType("text/html");
-			final String[] columns = {"id", "location", "name", "online", "address", "free space"};
+			final String[] columns = {"id", "location", "name", "online", "address", "free space", "stored chunks"};
 			final List<Node> nodes = Node.listNodesDatabase();
 			final Object[][] data = new Object[nodes.size()][columns.length];
 			int row = 0;
