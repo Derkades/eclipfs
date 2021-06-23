@@ -83,16 +83,6 @@ public class Node {
 		}
 	}
 
-	public long getStoredChunkSize() throws SQLException {
-		try (Connection conn = Database.getConnection();
-				PreparedStatement query = conn.prepareStatement("SELECT SUM(size) FROM chunk JOIN chunk_node ON chunk.id=chunk WHERE node=?")) {
-			query.setLong(1, this.getId());
-			final ResultSet result = query.executeQuery();
-			result.next();
-			return result.getLong(1);
-		}
-	}
-
 	public boolean hasChunk(final long chunkId) throws SQLException {
 		try (Connection conn = Database.getConnection();
 				PreparedStatement query = conn.prepareStatement("SELECT * FROM \"chunk_node\" WHERE chunk=? AND node=?")) {

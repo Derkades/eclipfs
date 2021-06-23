@@ -20,7 +20,7 @@ public class DashboardNodes extends HttpServlet {
 	protected void doGet(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
 		try {
 			response.setContentType("text/html");
-			final String[] columns = {"id", "location", "name", "online", "address", "free space", "stored chunks", "stored chunks size", "used"};
+			final String[] columns = {"id", "location", "name", "online", "address", "free space"};
 			final List<Node> nodes = Node.listNodesDatabase();
 			final Object[][] data = new Object[nodes.size()][columns.length];
 			int row = 0;
@@ -41,13 +41,6 @@ public class DashboardNodes extends HttpServlet {
 					data[row][5] = "-";
 				}
 				data[row][6] = node.getStoredChunkCount();
-				final long stored = node.getStoredChunkSize();
-				data[row][7] = StringFormatUtils.formatByteCount(stored);
-				if (stored == 0) {
-					data[row][8] = "?";
-				} else {
-					data[row][8] = String.format("%.2f%%", ((float) stored / (free + stored)) * 100);
-				}
 				row++;
 			}
 			Dashboard.writeTable(response.getWriter(), columns, data);
