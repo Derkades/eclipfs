@@ -1,11 +1,11 @@
 import os
-from os import environ as env
 
-METASERVER = env['METASERVER']
-USERNAME = env['USERNAME']
-PASSWORD = env['PASSWORD']
-
-PREFERRED_LOCATION = env['LOCATION']
+# Set at runtime by -o args
+METASERVER: str = None
+USERNAME: str = None
+PASSWORD: str = None
+PREFERRED_LOCATION: str = None
+FORK: bool = False
 
 # Owner for files, set to a user ID or os.getuid() for the user running the program
 MOUNT_UID = os.getuid()

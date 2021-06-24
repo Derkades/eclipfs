@@ -15,6 +15,7 @@ import requests
 from requests.exceptions import RequestException
 
 import pyfuse3
+import _pyfuse3
 import stat
 from pyfuse3 import FUSEError  # pylint: disable=no-name-in-module
 import errno
@@ -772,7 +773,7 @@ class Operations(pyfuse3.Operations):
         if offset + len(buf) > old_size:
             new_size = offset + len(buf)
             log.debug('With this write, size of inode is now larger. Increasing size from %s to %s',
-                        old_size, new_size)
+                      old_size, new_size)
             self.size_override[inode] = new_size
 
         self.release_cache(inode)
@@ -791,10 +792,13 @@ class Operations(pyfuse3.Operations):
         self._release_file_handle(fh)
 
 
-def init_logging(debug=False):
+def init_logging(debug=False, log_file=None):
     formatter = logging.Formatter('%(asctime)s.%(msecs)03d %(threadName)s: '
                                   '[%(name)s] %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
-    handler = logging.StreamHandler()
+    if log_file:
+        handler = logging.FileHandler(filename=log_file)
+    else:
+        handler = logging.StreamHandler()
     handler.setFormatter(formatter)
     root_logger = logging.getLogger()
     if debug:
@@ -805,14 +809,19 @@ def init_logging(debug=False):
         root_logger.setLevel(logging.INFO)
     root_logger.addHandler(handler)
 
+    logging.getLogger('schedule').setLevel(logging.WARNING)
+
 
 def parse_args():
     '''Parse command line'''
 
     parser = ArgumentParser()
 
+    parser.add_argument('server', type=str,
+                        help='Metaserver URL')
     parser.add_argument('mountpoint', type=str,
                         help='Where to mount the file system')
+    parser.add_argument('-o', metavar="OPTIONS", help='Mount options', required=True)
     parser.add_argument('--debug', action='store_true', default=False,
                         help='Enable debugging output')
     parser.add_argument('--debug-fuse', action='store_true', default=False,
@@ -821,13 +830,44 @@ def parse_args():
     return parser.parse_args()
 
 
+def parse_opts(opts_str: str):
+    opts = opts_str.split(',')
+    for opt in opts:
+        if opt == 'fork':
+            config.FORK = True
+            continue
+
+        opt = opt.split('=')
+
+        if len(opt) != 2:
+            if len(opt) == 1:
+                log.warning("Skipping unknown option '%s'", opt[0])
+            else:
+                log.warning("Skipping unknown option %s", opt)
+            continue
+
+        (key, value) = opt
+
+        if key == 'user':
+            config.USERNAME = value
+        elif key == 'pass':
+            config.PASSWORD = value
+        elif key == 'loc':
+            config.PREFERRED_LOCATION = value
+
+    if not config.USERNAME or not config.PASSWORD or not config.PREFERRED_LOCATION:
+        print('Missing required option')
+        print('Must specify: user, pass, loc')
+        sys.exit(1)
+
+
 def construct_encryption_key() -> bytes:
     # also serves as a connectivity check
 
     response = api.get('getEncryptionKey')
     if response is None or not response[0]:
         log.error('Connection error, exiting')
-        exit(1)
+        sys.exit(1)
 
     (_success, response) = response
     key_encoded = response['key']
@@ -838,12 +878,15 @@ def construct_encryption_key() -> bytes:
 
     if len(key) != 32:
         log.error('Key must be 32 bytes long, it is %s bytes.', len(key))
-        exit(1)
+        sys.exit(1)
 
     return key
 
 
 def clean_read_cache(operations: Operations):
+    if len(operations.read_cache) == 0:
+        return
+
     operations.global_cache_lock.acquire()
 
     to_remove = []
@@ -864,42 +907,68 @@ def clean_read_cache(operations: Operations):
 
 
 def timers(operations: Operations) -> None:
-    schedule.every(5).to(10).seconds.do(lambda: clean_read_cache(operations))
+    schedule.every(8).to(15).seconds.do(lambda: clean_read_cache(operations))
     while True:
         schedule.run_pending()
         time.sleep(1)
 
 
-if __name__ == '__main__':
-    options = parse_args()
-    init_logging(options.debug or 'DEBUG' in os.environ)
-    key = construct_encryption_key()
-
-    operations = Operations(key)
-
-    if pyfuse3.ROOT_INODE != config.ROOT_INODE:
-        raise(Exception(pyfuse3.ROOT_INODE + ' ' + config.ROOT_INODE))
+def start_filesystem(args, enc_key):
+    operations = Operations(enc_key)
 
     fuse_options = set(pyfuse3.default_options)
     fuse_options.add('fsname=eclipfs')
     fuse_options.add('allow_other')
     # fuse_options.discard('default_permissions')
-    if options.debug_fuse:
+    if args.debug_fuse:
         fuse_options.add('debug')
-    pyfuse3.init(operations, options.mountpoint, fuse_options)
+    pyfuse3.init(operations, args.mountpoint, fuse_options)
 
     t = threading.Thread(target=timers, args=[operations])
     t.daemon = True  # Required to exit nicely on SIGINT
     t.start()
 
-    log.info('Started successfully')
-
     try:
         log.debug('Entering main loop..')
         trio.run(pyfuse3.main)
-    except:
+    except BaseException:
         pyfuse3.close(unmount=False)
         raise
 
     log.debug('Unmounting..')
     pyfuse3.close()
+
+
+if __name__ == '__main__':
+    print(sys.argv)
+    args = parse_args()
+    parse_opts(args.o)
+    config.METASERVER = args.server
+
+    api.setup_requests_session()
+
+    log_file = '/var/log/eclipfs.log' if config.FORK else None
+    init_logging(args.debug or 'DEBUG' in os.environ, log_file)
+
+    enc_key = construct_encryption_key()
+
+    if pyfuse3.ROOT_INODE != config.ROOT_INODE:
+        raise(Exception(pyfuse3.ROOT_INODE + ' ' + config.ROOT_INODE))
+
+    log.info('Started successfully')
+    if config.FORK:
+        log.info('Forking for main loop')
+        pid = os.fork()
+        if (pid == 0):
+            os.chdir("/")
+            os.setsid()
+            os.umask(0)
+            pid2 = os.fork()
+            if (pid2 == 0):
+                pass
+            else:
+                os._exit(0)
+        else:
+            os._exit(0)
+
+    start_filesystem(args, enc_key)

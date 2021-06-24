@@ -46,10 +46,13 @@ retries = Retry(
     backoff_factor=config.REQUEST_BACKOFF_FACTOR,
 )
 
-http = sessions.BaseUrlSession(base_url=config.METASERVER)
-adapter = TimeoutHTTPAdapter(max_retries=retries)
-http.mount("http://", adapter)
-http.mount("https://", adapter)
+
+def setup_requests_session():
+    global http
+    http = sessions.BaseUrlSession(base_url=config.METASERVER)
+    adapter = TimeoutHTTPAdapter(max_retries=retries)
+    http.mount("http://", adapter)
+    http.mount("https://", adapter)
 
 
 def get_requests_session():
