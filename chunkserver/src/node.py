@@ -99,8 +99,8 @@ def upload():
 
     data = request.data
 
-    if len(data) > 1000000:
-        abort(404, 'Data too large')
+    if len(data) > 10_000_000:
+        abort(413, 'Data too large')
 
     fs_lock.acquire()
 
