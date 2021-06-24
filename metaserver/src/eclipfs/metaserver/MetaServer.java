@@ -41,6 +41,7 @@ import eclipfs.metaserver.http.PasswordChecker;
 import eclipfs.metaserver.migration.Migrations;
 import eclipfs.metaserver.model.Directory;
 import eclipfs.metaserver.model.Inode;
+import xyz.derkades.derkutils.StringFormatUtils;
 
 public class MetaServer {
 
@@ -99,7 +100,7 @@ public class MetaServer {
 		ENCRYPTION_KEY_ENCODED = Base64.getEncoder().encodeToString(key);
 
 		defaultChunkSize = System.getenv("CHUNK_SIZE") != null ? Integer.parseInt(System.getenv("CHUNK_SIZE")) : 1_000_000;
-		LOGGER.info("Using chunk size " + defaultChunkSize);
+		LOGGER.info("Using chunk size " + StringFormatUtils.formatByteCount(defaultChunkSize));
 	}
 
 	public static void main(final String[] args) throws Exception {
