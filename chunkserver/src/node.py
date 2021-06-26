@@ -279,7 +279,7 @@ def garbage_collect():
 
 def timers():
     announce()
-    schedule.every(13).to(16).seconds.do(announce)
+    schedule.every(10).to(13).seconds.do(announce)
     schedule.every(60).to(120).seconds.do(garbage_collect)
     while True:
         schedule.run_pending()
@@ -288,7 +288,7 @@ def timers():
 
 def init_logging():
     formatter = logging.Formatter('%(asctime)s.%(msecs)03d %(threadName)s: '
-                                '[%(name)s] %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
+                                  '[%(name)s] %(message)s', datefmt="%Y-%m-%d %H:%M:%S")
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
     root_logger = logging.getLogger()
