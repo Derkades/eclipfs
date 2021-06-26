@@ -43,15 +43,10 @@ public class Replication {
 			return "Idle (nothing to do)";
 		}
 
-		if (fast) {
-			return "Running (quickly)";
-		} else {
-			return "Running (slowly)";
-		}
+		return "Running";
 	}
 
 	private final static Deque<Long> QUEUE = new ArrayDeque<>();
-	static boolean fast = false;
 
 	// for dashboard
 	public static int getQueueSize() {
@@ -61,7 +56,7 @@ public class Replication {
 	static void run() {
 		while(true) {
 			try {
-				Thread.sleep(fast ? Tunables.REPLICATION_FAST_DELAY : Tunables.REPLICATION_SLOW_DELAY);
+				Thread.sleep(Tunables.REPLICATION_DELAY);
 
 				if (isBusy()) {
 					continue;
@@ -79,8 +74,6 @@ public class Replication {
 					}
 					continue;
 				}
-
-				fast = QUEUE.size() > Tunables.REPLICATION_FAST_THRESHOLD;
 
 				LOGGER.info("Processing replication queue, " + QUEUE.size() + " entries left.");
 

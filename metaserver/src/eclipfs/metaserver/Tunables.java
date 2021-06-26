@@ -9,9 +9,7 @@ public class Tunables {
 	public static final int NODE_OFFLINE_TIMEOUT = 30_000;
 
 	public static final long REPLICATION_IDLE_WAIT = 5_000;
-	public static final long REPLICATION_FAST_DELAY = 200;
-	public static final long REPLICATION_SLOW_DELAY = 500;
-	public static final long REPLICATION_FAST_THRESHOLD = 400;
+	public static final long REPLICATION_DELAY = 200;
 	public static final int REPLICATION_ADD_AMOUNT = 500;
 	public static final int REPLICATION_EMPTY_SLEEP = 120_000;
 
