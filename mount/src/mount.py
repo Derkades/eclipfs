@@ -468,6 +468,7 @@ class Operations(pyfuse3.Operations):
                 raise(FUSEError(errno.EEXIST))  # File exists
             else:
                 log.warning('Rename error, response: %s', response)
+                log.warning('request data: %s', data)
                 raise(FUSEError(errno.EREMOTEIO))  # Remote I/O error
 
     async def link(self, inode, new_inode_p, new_name, ctx):
