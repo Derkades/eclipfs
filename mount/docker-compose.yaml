@@ -5,14 +5,16 @@ services:
   mount:
     image: eclipfs/mount
     volumes:
-      - type: bind
-        source: /mnt/eclipfs
-        target: /mnt
-        bind:
-          propagation: shared
+      - /mnt/eclipfs:/mnt:shared
+      # - type: bind
+      #   source: /mnt/eclipfs
+      #   target: /mnt
+      #   bind:
+      #     propagation: shared
     cap_add: ['sys_admin']
-    devices: ['/dev/fuse:/dev/fuse']
+    devices: ['/dev/fuse']
     security_opt: ['apparmor:unconfined']
+    privileged: true
     environment:
       METASERVER: enter metaserver address
       USERNAME: enter username
