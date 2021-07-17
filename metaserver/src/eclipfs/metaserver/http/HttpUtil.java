@@ -74,7 +74,7 @@ public class HttpUtil {
 		final Optional<Inode> optInode = Inode.byId(inode);
 
 		if (optInode.isEmpty()) {
-			ApiError.FILE_NOT_EXISTS.send(response);
+			ApiError.INODE_NOT_EXISTS.send(response, "Inode with id " + inode + " does not exist");
 		}
 
 		return optInode.orElse(null);
@@ -90,7 +90,7 @@ public class HttpUtil {
 		if (inode.isFile()) {
 			return (File) inode;
 		} else {
-			ApiError.IS_A_DIRECTORY.send(response);
+			ApiError.IS_A_DIRECTORY.send(response, "Inode " + inode.getId() + " is a file");
 			return null;
 		}
 	}
@@ -105,7 +105,7 @@ public class HttpUtil {
 		if (!inode.isFile()) {
 			return (Directory) inode;
 		} else {
-			ApiError.IS_A_FILE.send(response);
+			ApiError.IS_A_FILE.send(response, "Inode " + inode.getId() + " is a file");
 			return null;
 		}
 	}
@@ -122,9 +122,10 @@ public class HttpUtil {
 
 			final Optional<Inode> opt = parent.getChild(name);
 			if (opt.isEmpty()) {
-				ApiError.NAME_NOT_EXISTS.send(response);
+				ApiError.INODE_NOT_EXISTS.send(response, "Name '" + name + "' does not exist in parent " + parent.getId());
+				return null;
 			}
-			return opt.orElse(null);
+			return opt.orElseThrow();
 		}
 	}
 
@@ -228,9 +229,10 @@ public class HttpUtil {
 
 			final Optional<Inode> opt = parent.getChild(name);
 			if (opt.isEmpty()) {
-				ApiError.NAME_NOT_EXISTS.send(response);
+				ApiError.NAME_NOT_EXISTS.send(response, "Name '" + name + "' does not exist in parent " + parent.getId());
+				return null;
 			}
-			return opt.orElse(null);
+			return opt.orElseThrow();
 		}
 	}
 
