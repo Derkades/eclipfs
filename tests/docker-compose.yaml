@@ -1,0 +1,59 @@
+version: '3.2'
+
+services:
+
+  db:
+    image: eclipfs/metaserver-db
+    environment:
+      POSTGRES_DB: eclipfs
+      POSTGRES_USER: eclipfs
+      POSTGRES_PASSWORD: password
+
+  metaserver:
+    image: eclipfs/metaserver
+  #   networks: [metaserver_db, proxy]
+    stdin_open: true
+    tty: true
+    environment:
+      POSTGRES_HOSTNAME: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: eclipfs
+      POSTGRES_USER: eclipfs
+      POSTGRES_PASSWORD: password
+    # restart: always
+
+  chunk1:
+    image: eclipfs/chunkserver
+    # ports: [8000:80]
+  #   networks: [proxy]
+  #   volumes:
+  #     - type: bind
+  #       source: /mnt/storj4/eclipfs
+  #       target: /data
+    environment:
+      TOKEN: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      METASERVER_ADDRESS: http://metaserver:7779
+      OWN_ADDRESS: http://chunk1
+      DEBUG: 1
+
+  chunk2:
+    image: eclipfs/chunkserver
+    environment:
+      TOKEN: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      METASERVER_ADDRESS: http://metaserver:7779
+      OWN_ADDRESS: http://chunk2
+      DEBUG: 1
+
+  mount:
+    image: eclipfs/mount
+    volumes:
+      - ./mount:/mnt:shared
+    cap_add: ['sys_admin']
+    devices: ['/dev/fuse']
+    security_opt: ['apparmor:unconfined']
+    privileged: true
+    environment:
+      METASERVER: 'http://metaserver:7779'
+      USERNAME: 'testuser'
+      PASSWORD: 'password'
+      LOCATION: 'loc1'
