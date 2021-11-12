@@ -6,7 +6,7 @@ services:
     build: ./database
     volumes:
       - type: bind
-        source: /opt/dsn_db
+        source: /opt/eclipfs/metaserver_db
         target: /var/lib/postgresql/data
       - type: bind
         source: postgres.conf
